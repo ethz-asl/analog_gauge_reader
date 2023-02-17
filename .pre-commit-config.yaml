@@ -1,0 +1,56 @@
+minimum_pre_commit_version: 2.9.3
+default_language_version:
+  # Force all unspecified python hooks to run python3
+  python: python3
+  ruby: 2.7.2
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.1.0
+    hooks:
+      - name: Trim trailing whitespaces
+        id: trailing-whitespace
+      - name: Add empty line to end of file
+        id: end-of-file-fixer
+      - name: Check that exectuables have shebangs
+        id: check-executables-have-shebangs
+      - name: Check XML file syntax parseability
+        id: check-xml
+      - name: Check JSON file syntax parseability
+        id: check-json
+      - name: Check YAML file syntax parseability
+        id: check-yaml
+        args: [ --allow-multiple-documents ]
+      - name: Block commits to master
+        id: no-commit-to-branch
+      - name: Check that no large files were added (>500kB)
+        id: check-added-large-files
+        args: [ "--maxkb=500" ]
+      - name: Checks that no unresolved merge conflict are committed
+        id: check-merge-conflict
+
+  - repo: https://github.com/google/yapf
+    rev: v0.31.0
+    hooks:
+      - name: Format python files with yapf
+        id: yapf
+
+  - repo: https://github.com/PyCQA/pylint
+    rev: v2.12.2
+    hooks:
+      - name: Lint python files with pylint
+        id: pylint
+        args: [ --rcfile=.pylintrc ]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.8.0.3
+    hooks:
+      - name: Check shell scripts with shellcheck
+        id: shellcheck
+
+  - repo: https://github.com/markdownlint/markdownlint
+    rev: v0.11.0
+    hooks:
+      - name: Lint markdown files with markdownlint
+        id: markdownlint
+        args: [ --rules="~MD013" ]
