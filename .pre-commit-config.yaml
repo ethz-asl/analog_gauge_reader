@@ -47,10 +47,3 @@ repos:
     hooks:
       - name: Check shell scripts with shellcheck
         id: shellcheck
-
-  - repo: https://github.com/markdownlint/markdownlint
-    rev: v0.11.0
-    hooks:
-      - name: Lint markdown files with markdownlint
-        id: markdownlint
-        args: [ --rules="~MD013" ]

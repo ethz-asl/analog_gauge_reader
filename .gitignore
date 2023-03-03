@@ -131,3 +131,9 @@ dmypy.json
 # CLion
 **.idea
 **cmake-build-*
+
+#Custom ignores
+yolov8?.pt
+yolov8?-seg.pt
+**/runs
+gauge detection/data
