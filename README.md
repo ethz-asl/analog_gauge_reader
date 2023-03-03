@@ -23,3 +23,5 @@ pre-commit install
 ```
 
 After the above command, `pre-commit` will automatically check all changed files whenever you try to commit them. You can also run it on all of the repository's files manually at any time by calling `pre-commit run --all-files` and add/customize the checks it performs by editing its config file `.pre-commit-config.yaml` located in this repository's root directory.
+
+On commit, some linting issues will be fixed automatically. To accept these changes, you need to `git add` the corresponding files and do a `git commit` again afterwards. However, some issues cannot be fixed automatically. These need to be fixed manually before being able to do a successful commit.
