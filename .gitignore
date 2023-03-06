@@ -136,4 +136,4 @@ dmypy.json
 yolov8?.pt
 yolov8?-seg.pt
 **/runs
-gauge detection/data
+**/data
