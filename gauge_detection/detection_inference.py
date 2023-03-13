@@ -2,6 +2,12 @@ from ultralytics import YOLO
 
 
 def detection_gauge_face(img, model_path='best.pt'):
+    '''
+    uses yolo v8 to get bounding box of gauge face
+    :param img: numpy image
+    :param model_path: path to yolov8 detection model
+    :return: highest confidence box for further processing and list of all boxes for visualization
+    '''
     model = YOLO(model_path)  # load model
 
     results = model(img)  # run inference, detects gauge face and needle
@@ -20,4 +26,4 @@ def detection_gauge_face(img, model_path='best.pt'):
     if gauge_face_box is None:
         raise Exception('No gauge face detected in image.')
 
-    return gauge_face_box.xyxy[0].int()
+    return gauge_face_box.xyxy[0].int(), boxes

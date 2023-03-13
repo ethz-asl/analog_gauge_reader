@@ -23,15 +23,25 @@ def read_args():
     return parser.parse_args()
 
 
-# box xyxy format
 def crop_image(img, box):
+    """
+    crop image
+    :param img: orignal image
+    :param box: in the xyxy format
+    :return: cropped image
+    """
     cropped_img = img[box[1]:box[3],
                       box[0]:box[2], :]  # image has format [y, x, rgb]
     return cropped_img
 
 
-# plot detected bounding boxes. boxes is the result of the yolov8 detection
+#
 def plot_bounding_box_img(img, boxes):
+    """
+    plot detected bounding boxes. boxes is the result of the yolov8 detection
+    :param img: image to draw bounding boxes on
+    :param boxes: list of bounding boxes
+    """
     for box in boxes:
         bbox = box.xyxy[0].int()
         start_point = (int(bbox[0]), int(bbox[1]))
@@ -51,7 +61,6 @@ def plot_bounding_box_img(img, boxes):
                             thickness=1)
 
     plot_img(img)
-    return img
 
 
 def plot_img(img, title='image'):
