@@ -1,14 +1,21 @@
-from mmocr.ocr import MMOCR
+from mmocr.apis import MMOCRInferencer
 
 
-def ocr(img, img_out_dir=None):
-    ocr_model = MMOCR(det='DB_r18', recog='ABINet')
+def ocr(img, visualize=True):
+    """
+    Detect and recognize the characters in the image
+    :param img: numpy img to do ocr on
+    :param visualize: bool if to return image with visualization in results dict
+    :return: ocr_results_dict with two keys: 'predictions' what we care about
+     and 'visualization' the image for debugging/understanding
+    """
+    ocr_model = MMOCRInferencer(det='DB_r18', recog='ABINet')
 
-    ocr_results = None
+    ocr_results = {}
 
     # MMOCR seems to throw error if no text detected
     try:
-        ocr_results = ocr_model.readtext(img, img_out_dir=img_out_dir)
+        ocr_results = ocr_model(img, return_vis=visualize)
     except IndexError:
         print("nothing detected")
 
