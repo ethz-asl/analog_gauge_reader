@@ -1,3 +1,4 @@
+import argparse
 import os
 import numpy as np
 import timm
@@ -14,8 +15,6 @@ from model import Decoder
 # Constants
 N_HEATMAPS = 3
 INPUT_SIZE = (224, 224)
-PATH = 'C:\\Users\\mauri\\OneDrive\\Dokumente\\ETHZ\\Master Elektrotechnik\\Semester Thesis' \
-       '\\Analogue Gauge Reading\\data\\key_point_train\\'
 
 
 class KeypointImageDataSet(Dataset):
@@ -173,17 +172,29 @@ def compare_heatmap(trainer, features, annotation, filename, plot=False):
 
 
 def main():
+
+    args = read_args()
+
+    # parameters for training
+    encoder_model_name = args.encoder_model
+    num_layers = args.layers  # number of layers of the feature extractor
+    num_epochs = args.epochs
+    learning_rate = args.learning_rate
+
+    train_image_path = args.train_img_path
+    train_label_path = args.train_label_path
+
+    image_out = args.img_out
+
+    # for debugging to see result of single test image
+    test_image_path = args.test_img_path
+    test_label_path = args.test_label_path
+
+    if test_image_path is not None:
+        assert test_label_path is not None
+
     # fix seed for reproducibility
     torch.manual_seed(0)
-
-    # parameters for training, might want to pass these with program arguments
-    encoder_model_name = 'convnext_base'
-    num_layers = 2  # number of layers of the feature extractor
-    num_epochs = 3
-    learning_rate = 3e-4
-
-    img_path = PATH + 'single_img'
-    annotation_path = PATH + 'single_label'
 
     convnext_model = timm.create_model(encoder_model_name, pretrained=True)
 
@@ -195,30 +206,74 @@ def main():
     feature_extractor = nn.Sequential(*layer_list_encoder)
 
     # initialize trainer
-    trainer = KeyPointTrain(feature_extractor, img_path, annotation_path)
+    trainer = KeyPointTrain(feature_extractor, train_image_path,
+                            train_label_path)
 
     # train model
     decoder_model = trainer.train(num_epochs, learning_rate)
 
     # try out trained model on test image, plot result and compare it to true label
-    test_img_path = PATH + 'single_img\\17_cropped_20220613_155355948_iOS_jpg' \
-                           '.rf.e941c175654b0bb5bced4aec8220b2c8.jpg'
-    test_img = Image.open(test_img_path).convert("RGB")
+    test_img = Image.open(test_image_path).convert("RGB")
     features = trainer.transform(test_img)
     heatmaps = decoder_model(features.unsqueeze(0))
     heatmaps = heatmaps.detach().numpy().squeeze(0)
-    test_label_path = PATH + 'single_label\\17_cropped_20220613_155355948_iOS_jpg.' \
-                             'rf.e941c175654b0bb5bced4aec8220b2c8.npy'
+
     true_test_label = np.load(test_label_path)
     plot_heatmaps(heatmaps, true_test_label, plot=True)
 
     # plot and save results on training data to see if results are satisfactory on training images.
-    dataset = trainer.get_train_dataset()
-    for index, data in enumerate(dataset):
-        feature, annotation = data
-        new_file_path = PATH + 'test_results\\' + dataset.get_name(
-            index) + '.jpg'
-        compare_heatmap(trainer, feature, annotation, new_file_path)
+    if image_out is not None:
+        dataset = trainer.get_train_dataset()
+        for index, data in enumerate(dataset):
+            feature, annotation = data
+            new_file_path = image_out + dataset.get_name(index) + '.jpg'
+            compare_heatmap(trainer, feature, annotation, new_file_path)
+
+
+def read_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--encoder_model',
+                        type=str,
+                        required=False,
+                        default='convnext_base',
+                        help="name of encoder model")
+    parser.add_argument('--layers',
+                        type=int,
+                        required=False,
+                        default=2,
+                        help="Number of layers of feature extractor")
+    parser.add_argument('--epochs',
+                        type=int,
+                        required=False,
+                        default=50,
+                        help="Number of epochs for training")
+    parser.add_argument('--learning_rate',
+                        type=float,
+                        required=False,
+                        default=3e-4,
+                        help="Path to input image")
+
+    parser.add_argument('--train_img_path',
+                        type=str,
+                        required=True,
+                        help="Path to train images")
+    parser.add_argument('--train_label_path',
+                        type=str,
+                        required=True,
+                        help="Path to train labels")
+    parser.add_argument('--test_img_path',
+                        type=str,
+                        required=False,
+                        help="Path to test images")
+    parser.add_argument('--test_label_path',
+                        type=str,
+                        required=False,
+                        help="Path to test label")
+    parser.add_argument('--img_out',
+                        type=str,
+                        required=False,
+                        help="Path to save predictions of training images to")
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
