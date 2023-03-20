@@ -14,6 +14,7 @@ from model import Decoder
 
 # Constants
 N_HEATMAPS = 3
+N_CHANNELS = 50  # Number of intermediate channels for Nonlinearity
 INPUT_SIZE = (224, 224)
 
 
@@ -95,8 +96,7 @@ class KeyPointTrain:
 
     def _create_model(self):
         n_feature_channels = self.feature_shape[1]
-        return Decoder(n_feature_channels, INPUT_SIZE[0], INPUT_SIZE[1],
-                       N_HEATMAPS)
+        return Decoder(n_feature_channels, N_CHANNELS, INPUT_SIZE, N_HEATMAPS)
 
     def _get_feature_shape(self):
         input_shape = (1, 3, INPUT_SIZE[0], INPUT_SIZE[1])
