@@ -32,5 +32,20 @@ bilinearly upsamples the image to the output size and then does 1x1 convolutions
 ### Training
 For the moment Adam training with a regular L2-loss
 
+Data needs the following structure:
+
+```
+--train
+    --images
+    --labels
+--val
+    --images
+    --labels
+--test
+    --images
+    --labels
+
+```
+
 ## Keypoint extraction
 Want to use [Mean-Shift](https://en.wikipedia.org/wiki/Mean_shift) to detect key-points.

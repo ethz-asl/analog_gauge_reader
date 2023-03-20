@@ -1,5 +1,7 @@
 import argparse
 import os
+import time
+
 import numpy as np
 import timm
 import torch
@@ -16,6 +18,13 @@ from model import Decoder
 N_HEATMAPS = 3
 N_CHANNELS = 50  # Number of intermediate channels for Nonlinearity
 INPUT_SIZE = (224, 224)
+
+TRAIN_PATH = 'train\\'
+VAL_PATH = 'val\\'
+TEST_PATH = 'test\\'
+IMG_PATH = 'images\\'
+LABEL_PATH = 'labels\\'
+RUN_PATH = 'runs'
 
 
 class KeypointImageDataSet(Dataset):
@@ -73,7 +82,11 @@ class FeatureExtractor:
 
 
 class KeyPointTrain:
-    def __init__(self, feature_extractor, image_folder, annotation_folder):
+    def __init__(self, feature_extractor, base_path):
+
+        image_folder = base_path + '\\' + TRAIN_PATH + IMG_PATH
+        annotation_folder = base_path + '\\' + TRAIN_PATH + LABEL_PATH
+
         self.feature_extractor = feature_extractor
 
         self.transform = transforms.Compose([
@@ -136,6 +149,40 @@ class KeyPointTrain:
         return self.model
 
 
+class KeyPointVal:
+    def __init__(self, feature_extractor, decoder_model, base_path):
+        image_folder = base_path + '\\' + VAL_PATH + IMG_PATH
+        annotation_folder = base_path + '\\' + VAL_PATH + LABEL_PATH
+
+        self.base_path = base_path
+        self.feature_extractor = feature_extractor
+        self.decoder_model = decoder_model
+        self.transform = transforms.Compose([
+            transforms.Resize(INPUT_SIZE),
+            transforms.ToTensor(),
+            # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            FeatureExtractor(feature_extractor)
+        ])
+
+        self.val_dataset = KeypointImageDataSet(
+            img_dir=image_folder,
+            annotations_dir=annotation_folder,
+            transform=self.transform)
+
+    def validate(self, plot=False):
+        time_str = time.strftime("%Y%m%d-%H%M%S")
+        run_path = self.base_path + '\\' + RUN_PATH + '_' + time_str
+        os.mkdir(run_path)
+        for index, data in enumerate(self.val_dataset):
+            feature, annotation = data
+            heatmaps = self.decoder_model(feature.unsqueeze(0))
+            heatmaps = heatmaps.detach().numpy().squeeze(0)
+            new_file_path = run_path + '\\' + self.val_dataset.get_name(
+                index) + '.jpg'
+
+            plot_heatmaps(heatmaps, annotation, new_file_path, plot=plot)
+
+
 def plot_heatmaps(heatmaps1, heatmaps2, filename=None, plot=False):
     plt.figure(figsize=(12, 8))
 
@@ -162,17 +209,7 @@ def plot_heatmaps(heatmaps1, heatmaps2, filename=None, plot=False):
         plt.show()
 
 
-def compare_heatmap(trainer, features, annotation, filename, plot=False):
-    heatmaps = trainer.get_model()(features.unsqueeze(0))
-    heatmaps = heatmaps.detach().numpy().squeeze()
-
-    true_test_label = annotation
-
-    plot_heatmaps(heatmaps, true_test_label, filename, plot)
-
-
 def main():
-
     args = read_args()
 
     # parameters for training
@@ -181,17 +218,7 @@ def main():
     num_epochs = args.epochs
     learning_rate = args.learning_rate
 
-    train_image_path = args.train_img_path
-    train_label_path = args.train_label_path
-
-    image_out = args.img_out
-
-    # for debugging to see result of single test image
-    test_image_path = args.test_img_path
-    test_label_path = args.test_label_path
-
-    if test_image_path is not None:
-        assert test_label_path is not None
+    base_path = args.data
 
     # fix seed for reproducibility
     torch.manual_seed(0)
@@ -206,28 +233,14 @@ def main():
     feature_extractor = nn.Sequential(*layer_list_encoder)
 
     # initialize trainer
-    trainer = KeyPointTrain(feature_extractor, train_image_path,
-                            train_label_path)
+
+    trainer = KeyPointTrain(feature_extractor, base_path)
 
     # train model
     decoder_model = trainer.train(num_epochs, learning_rate)
 
-    # try out trained model on test image, plot result and compare it to true label
-    test_img = Image.open(test_image_path).convert("RGB")
-    features = trainer.transform(test_img)
-    heatmaps = decoder_model(features.unsqueeze(0))
-    heatmaps = heatmaps.detach().numpy().squeeze(0)
-
-    true_test_label = np.load(test_label_path)
-    plot_heatmaps(heatmaps, true_test_label, plot=True)
-
-    # plot and save results on training data to see if results are satisfactory on training images.
-    if image_out is not None:
-        dataset = trainer.get_train_dataset()
-        for index, data in enumerate(dataset):
-            feature, annotation = data
-            new_file_path = image_out + dataset.get_name(index) + '.jpg'
-            compare_heatmap(trainer, feature, annotation, new_file_path)
+    validator = KeyPointVal(feature_extractor, decoder_model, base_path)
+    validator.validate()
 
 
 def read_args():
@@ -251,28 +264,12 @@ def read_args():
                         type=float,
                         required=False,
                         default=3e-4,
-                        help="Path to input image")
+                        help="Learning rate for training")
+    parser.add_argument('--data',
+                        type=str,
+                        required=True,
+                        help="Base path of data")
 
-    parser.add_argument('--train_img_path',
-                        type=str,
-                        required=True,
-                        help="Path to train images")
-    parser.add_argument('--train_label_path',
-                        type=str,
-                        required=True,
-                        help="Path to train labels")
-    parser.add_argument('--test_img_path',
-                        type=str,
-                        required=False,
-                        help="Path to test images")
-    parser.add_argument('--test_label_path',
-                        type=str,
-                        required=False,
-                        help="Path to test label")
-    parser.add_argument('--img_out',
-                        type=str,
-                        required=False,
-                        help="Path to save predictions of training images to")
     return parser.parse_args()
 
 
