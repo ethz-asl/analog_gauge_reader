@@ -19,11 +19,11 @@ N_HEATMAPS = 3
 N_CHANNELS = 50  # Number of intermediate channels for Nonlinearity
 INPUT_SIZE = (224, 224)
 
-TRAIN_PATH = 'train\\'
-VAL_PATH = 'val\\'
-TEST_PATH = 'test\\'
-IMG_PATH = 'images\\'
-LABEL_PATH = 'labels\\'
+TRAIN_PATH = 'train'
+VAL_PATH = 'val'
+TEST_PATH = 'test'
+IMG_PATH = 'images'
+LABEL_PATH = 'labels'
 RUN_PATH = 'runs'
 
 
@@ -84,8 +84,8 @@ class FeatureExtractor:
 class KeyPointTrain:
     def __init__(self, feature_extractor, base_path):
 
-        image_folder = base_path + '\\' + TRAIN_PATH + IMG_PATH
-        annotation_folder = base_path + '\\' + TRAIN_PATH + LABEL_PATH
+        image_folder = os.path.join(base_path, TRAIN_PATH, IMG_PATH)
+        annotation_folder = os.path.join(base_path, TRAIN_PATH, LABEL_PATH)
 
         self.feature_extractor = feature_extractor
 
@@ -151,8 +151,8 @@ class KeyPointTrain:
 
 class KeyPointVal:
     def __init__(self, feature_extractor, decoder_model, base_path):
-        image_folder = base_path + '\\' + VAL_PATH + IMG_PATH
-        annotation_folder = base_path + '\\' + VAL_PATH + LABEL_PATH
+        image_folder = os.path.join(base_path, VAL_PATH, IMG_PATH)
+        annotation_folder = os.path.join(base_path, VAL_PATH, LABEL_PATH)
 
         self.base_path = base_path
         self.feature_extractor = feature_extractor
@@ -171,14 +171,15 @@ class KeyPointVal:
 
     def validate(self, plot=False):
         time_str = time.strftime("%Y%m%d-%H%M%S")
-        run_path = self.base_path + '\\' + RUN_PATH + '_' + time_str
+        run_path = os.path.join(self.base_path, RUN_PATH + '_' + time_str)
         os.mkdir(run_path)
         for index, data in enumerate(self.val_dataset):
             feature, annotation = data
             heatmaps = self.decoder_model(feature.unsqueeze(0))
             heatmaps = heatmaps.detach().numpy().squeeze(0)
-            new_file_path = run_path + '\\' + self.val_dataset.get_name(
-                index) + '.jpg'
+            new_file_path = os.path.join(
+                run_path,
+                self.val_dataset.get_name(index) + '.jpg')
 
             plot_heatmaps(heatmaps, annotation, new_file_path, plot=plot)
 
