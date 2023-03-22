@@ -30,7 +30,7 @@ For the moment we have for the decoder a very simple model which
 bilinearly upsamples the image to the output size and then does 1x1 convolutions on it.
 
 ### Training
-For the moment Adam training with a regular L2-loss
+For the moment Adam training with a regular L2-loss. Learning rate chosen at 3e-4 for now.
 
 Data needs the following structure:
 
@@ -48,4 +48,18 @@ Data needs the following structure:
 ```
 
 ## Keypoint extraction
-Want to use [Mean-Shift](https://en.wikipedia.org/wiki/Mean_shift) to detect key-points.
+We use [Mean-Shift](https://en.wikipedia.org/wiki/Mean_shift) to detect key-points.
+Specifically the [sklearn](https://scikit-learn.org/stable/modules/generated/sklearn.cluster.MeanShift.html) implementation
+
+Here it is essential to choose the correct cutoff threshold.
+Points below the threshold are not considered for clustering. Lowering the threshold increases computation time.
+
+## Evaluation Predicted Key Points
+
+To compare and evaluate the key points aside from visual inspection we calculate three different metrics.
+1. mean distance: Each predicted point is assigned to each true point by lowest euclidean distance
+These minimum distances are then averaged.
+2. PCK: Percentage of correctly predicted true key points:
+Share of true points where there is at least one predicted point close to it.
+3. Percentage of non-corresponding predicted points:
+Share of predicted points which are not close to any true point.
