@@ -1,6 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Here code for fit_ellipse, cart_to_pol and get_ellipse is taken from following blog post:
+# https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/
+# As described in the blog post this implements a numerically stable version
+# of the ellipse fitting, described here https://autotrace.sourceforge.net/WSCG98.pdf
+
 
 def fit_ellipse(x, y):
     """
