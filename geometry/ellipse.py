@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 # Here code for fit_ellipse, cart_to_pol and get_ellipse is taken from following blog post:
 # https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/
@@ -150,56 +149,3 @@ def project_point(point, ellipse_params):
     y_proj = rot_p[1] + y0
 
     return x_proj, y_proj
-
-
-def demo_ellipse_fitting():
-    # Test the algorithm with an example elliptical arc.
-    npts = 250
-    tmin, tmax = np.pi / 6, 4 * np.pi / 3
-    x0, y0 = 4, -3.5
-    ap, bp = 7, 3
-    phi = np.pi / 4
-    # Get some points on the ellipse (no need to specify the eccentricity).
-    x, y = get_ellipse_pts((x0, y0, ap, bp, phi), npts, tmin, tmax)
-    noise = 0.1
-    x += noise * np.random.normal(size=npts)
-    y += noise * np.random.normal(size=npts)
-
-    coeffs = fit_ellipse(x, y)
-    print('Exact parameters:')
-    print('x0, y0, ap, bp, phi =', x0, y0, ap, bp, phi)
-    print('Fitted parameters:')
-    print('a, b, c, d, e, f =', coeffs)
-    x0, y0, ap, bp, e, phi = cart_to_pol(coeffs)
-    print('x0, y0, ap, bp, e, phi = ', x0, y0, ap, bp, e, phi)
-
-    plt.plot(x, y, 'x')  # given points
-    x, y = get_ellipse_pts((x0, y0, ap, bp, phi))
-    plt.plot(x, y)
-    plt.show()
-
-
-def demo_ellipse_point_projection():
-    x0, y0 = 4, -3.5
-    ap, bp = 7, 4
-    phi = np.pi / 4
-    # Get some points on the ellipse (no need to specify the eccentricity).
-    x_e, y_e = get_ellipse_pts((x0, y0, ap, bp, phi))
-    plt.plot(x_e, y_e)
-    plt.scatter(x0, y0)
-
-    # point to project on to the ellipse
-    x = 8
-    y = -1
-    point = np.array([x, y])
-    plt.scatter(x, y)
-
-    projected_point = project_point(point, (x0, y0, ap, bp, phi))
-    x_proj, y_proj = projected_point
-    plt.scatter(x_proj, y_proj)
-    plt.show()
-
-
-if __name__ == '__main__':
-    demo_ellipse_fitting()
-    demo_ellipse_point_projection()
