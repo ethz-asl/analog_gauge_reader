@@ -1,8 +1,10 @@
 import argparse
 import cv2
+import matplotlib.pyplot as plt
 
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr
+from key_point_detection.key_point_inference import KeyPointInference
 
 
 def read_args():
@@ -15,11 +17,11 @@ def read_args():
                         type=str,
                         required=True,
                         help="Path to detection model")
-    parser.add_argument('--debug',
-                        type=bool,
-                        required=False,
-                        default=False,
-                        help="Path to input image")
+    parser.add_argument('--key_point_model',
+                        type=str,
+                        required=True,
+                        help="Path to key point model")
+    parser.add_argument('--debug', action='store_true')
     return parser.parse_args()
 
 
@@ -63,6 +65,29 @@ def plot_bounding_box_img(img, boxes):
     plot_img(img)
 
 
+def plot_key_points(image, key_point_list):
+    plt.figure(figsize=(12, 8))
+
+    titles = ['Start', 'Middle', 'End']
+
+    image = image.permute(1, 2, 0)
+
+    for i in range(3):
+        key_points = key_point_list[i]
+        plt.subplot(2, 3, i + 1)
+        plt.imshow(image)
+        plt.scatter(key_points[:, 0],
+                    key_points[:, 1],
+                    s=50,
+                    c='red',
+                    marker='x')
+        plt.title(f'Predicted Key Point {titles[i]}')
+
+    plt.tight_layout()
+
+    plt.show()
+
+
 def plot_img(img, title='image'):
     cv2.imshow(title, img)
     cv2.waitKey(0)
@@ -71,7 +96,10 @@ def plot_img(img, title='image'):
     cv2.destroyAllWindows()
 
 
-def process_image(img_path, detection_model_path, debug=False):
+def process_image(img_path,
+                  detection_model_path,
+                  key_point_model,
+                  debug=False):
     image = cv2.imread(img_path)
 
     # Gauge detection
@@ -89,6 +117,12 @@ def process_image(img_path, detection_model_path, debug=False):
     if debug:
         plot_img(ocr_results['visualization'][0])
 
+    key_point_inferencer = KeyPointInference(key_point_model)
+    key_point_list = key_point_inferencer.detect_key_points(cropped_img)
+
+    if debug:
+        plot_key_points(cropped_img, key_point_list)
+
     return cropped_img
 
 
@@ -97,8 +131,12 @@ def main():
 
     img_path = args.input
     detection_model_path = args.detection_model
+    key_point_model = args.key_point_model
 
-    process_image(img_path, detection_model_path, debug=args.debug)
+    process_image(img_path,
+                  detection_model_path,
+                  key_point_model,
+                  debug=args.debug)
 
 
 if __name__ == "__main__":
