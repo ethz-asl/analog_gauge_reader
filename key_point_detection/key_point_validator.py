@@ -1,0 +1,185 @@
+import argparse
+import os
+import time
+
+import matplotlib.pyplot as plt
+
+import torch
+from torchvision import transforms
+
+from key_point_extraction import full_key_point_extraction
+from key_point_dataset import KeypointImageDataSet, \
+    IMG_PATH, LABEL_PATH, INPUT_SIZE, TRAIN_PATH, RUN_PATH
+
+HEATMAP_PREFIX = "H_"
+KEY_POINT_PREFIX = "K_"
+
+VAL_PATH = 'val'
+TEST_PATH = 'test'
+
+
+class KeyPointVal:
+    def __init__(self, model, base_path):
+        train_image_folder = os.path.join(base_path, TRAIN_PATH, IMG_PATH)
+        train_annotation_folder = os.path.join(base_path, TRAIN_PATH,
+                                               LABEL_PATH)
+
+        val_image_folder = os.path.join(base_path, VAL_PATH, IMG_PATH)
+        val_annotation_folder = os.path.join(base_path, VAL_PATH, LABEL_PATH)
+
+        self.base_path = base_path
+        self.model = model
+        self.transform = transforms.Compose([
+            transforms.Resize(INPUT_SIZE),
+            transforms.ToTensor(),
+            # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ])
+
+        self.train_dataset = KeypointImageDataSet(
+            img_dir=train_image_folder,
+            annotations_dir=train_annotation_folder,
+            transform=self.transform)
+
+        self.val_dataset = KeypointImageDataSet(
+            img_dir=val_image_folder,
+            annotations_dir=val_annotation_folder,
+            transform=self.transform)
+
+    def validate_set(self, path, dataset):
+        for index, data in enumerate(dataset):
+            image, annotation = data
+
+            heatmaps = self.model(image.unsqueeze(0))
+
+            # take it as numpy array and decrease dimension by one
+            heatmaps = heatmaps.detach().numpy().squeeze(0)
+
+            key_points = full_key_point_extraction(heatmaps)
+            key_points_true = full_key_point_extraction(
+                annotation.detach().numpy(), threshold=0.95)
+
+            # plot the heatmaps in the run folder
+            heatmap_file_path = os.path.join(
+                path, HEATMAP_PREFIX + dataset.get_name(index) + '.jpg')
+            plot_heatmaps(heatmaps, annotation, heatmap_file_path, plot=False)
+            key_point_file_path = os.path.join(
+                path, KEY_POINT_PREFIX + dataset.get_name(index) + '.jpg')
+            plot_key_points(image,
+                            key_points,
+                            key_points_true,
+                            key_point_file_path,
+                            plot=False)
+
+    def validate(self):
+        time_str = time.strftime("%Y%m%d-%H%M%S")
+        run_path = os.path.join(self.base_path, RUN_PATH + '_' + time_str)
+        train_path = os.path.join(run_path, TRAIN_PATH)
+        val_path = os.path.join(run_path, VAL_PATH)
+
+        os.mkdir(run_path)
+        os.mkdir(train_path)
+        os.mkdir(val_path)
+
+        self.validate_set(train_path, self.train_dataset)
+        self.validate_set(val_path, self.val_dataset)
+
+
+def plot_heatmaps(heatmaps1, heatmaps2, filename=None, plot=False):
+    plt.figure(figsize=(12, 8))
+
+    titles = ['Start', 'Middle', 'End']
+
+    for i in range(3):
+        plt.subplot(2, 3, i + 1)
+        plt.imshow(heatmaps1[i], cmap=plt.cm.viridis)
+        plt.title(f'Predicted Heatmap {titles[i]}')
+
+    for i in range(3):
+        plt.subplot(2, 3, i + 4)
+        plt.imshow(heatmaps2[i], cmap=plt.cm.viridis)
+        plt.title(f'True Heatmap {titles[i]}')
+
+    # Adjust the layout of the subplots
+    plt.tight_layout()
+
+    if filename is not None:
+        plt.savefig(filename, bbox_inches='tight')
+
+    # Show the plots
+    if plot:
+        plt.show()
+
+
+def plot_key_points(image,
+                    key_points_pred,
+                    key_points_true,
+                    filename=None,
+                    plot=False):
+    plt.figure(figsize=(12, 8))
+
+    titles = ['Start', 'Middle', 'End']
+
+    image = image.permute(1, 2, 0)
+
+    for i in range(3):
+        key_points = key_points_pred[i]
+        plt.subplot(2, 3, i + 1)
+        plt.imshow(image)
+        plt.scatter(key_points[:, 0],
+                    key_points[:, 1],
+                    s=50,
+                    c='red',
+                    marker='x')
+        plt.title(f'Predicted Key Point {titles[i]}')
+
+    for i in range(3):
+        key_points = key_points_true[i]
+        plt.subplot(2, 3, i + 4)
+        plt.imshow(image)
+        plt.scatter(key_points[:, 0],
+                    key_points[:, 1],
+                    s=50,
+                    c='red',
+                    marker='x')
+        plt.title(f'True Key Point {titles[i]}')
+
+    # Adjust the layout of the subplots
+    plt.tight_layout()
+
+    if filename is not None:
+        plt.savefig(filename, bbox_inches='tight')
+
+    # Show the plots
+    if plot:
+        plt.show()
+
+
+def main():
+    args = read_args()
+
+    model_path = args.model_path
+    base_path = args.data
+
+    model = torch.load(model_path)
+
+    validator = KeyPointVal(model, base_path)
+    validator.validate()
+
+
+def read_args():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_path',
+                        type=str,
+                        required=True,
+                        help="path to pytorch model")
+    parser.add_argument('--data',
+                        type=str,
+                        required=True,
+                        help="Base path of data")
+
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()

@@ -6,7 +6,7 @@ class Decoder(nn.Module):
                  n_heatmaps):
         super().__init__()
         self.upsampling = nn.Sequential(
-            nn.Upsample(size=out_size, mode='bilinear'))
+            nn.Upsample(size=out_size, mode='bilinear', align_corners=False))
         self.heatmaphead = nn.Sequential(
             nn.Conv2d(n_input_channels, n_inter_channels, (1, 1), bias=True),
             nn.ReLU(),
