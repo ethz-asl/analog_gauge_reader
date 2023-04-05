@@ -4,9 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from gauge_detection.detection_inference import detection_gauge_face
-from ocr.ocr_inference import ocr
+# from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference
 from geometry.ellipse import get_ellipse_pts, fit_ellipse, cart_to_pol
+from segmentation.segmenation_inference import segment_gauge_needle, \
+    get_fitted_line, plot_segmented_line
 
 
 def read_args():
@@ -23,6 +25,10 @@ def read_args():
                         type=str,
                         required=True,
                         help="Path to key point model")
+    parser.add_argument('--segmentation_model',
+                        type=str,
+                        required=True,
+                        help="Path to segmentation model")
     parser.add_argument('--debug', action='store_true')
     return parser.parse_args()
 
@@ -108,6 +114,7 @@ def plot_ellipse(image, x, y, params):
 def process_image(img_path,
                   detection_model_path,
                   key_point_model,
+                  segmentation_model,
                   debug=False):
     image = cv2.imread(img_path)
 
@@ -129,10 +136,17 @@ def process_image(img_path,
         plot_img(cropped_img)
 
     # ocr
-    ocr_results = ocr(cropped_img, debug)
+    # ocr_results = ocr(cropped_img, debug)
+    # if debug:
+    #     plot_img(ocr_results['visualization'][0])
+
+    needle_mask_x, needle_mask_y = segment_gauge_needle(
+        cropped_img, segmentation_model)
+    needle_line_coeffs = get_fitted_line(needle_mask_x, needle_mask_y)
 
     if debug:
-        plot_img(ocr_results['visualization'][0])
+        plot_segmented_line(cropped_img, needle_mask_x, needle_mask_y,
+                            needle_line_coeffs)
 
     # detect key points
     key_point_inferencer = KeyPointInference(key_point_model)
@@ -157,10 +171,12 @@ def main():
     img_path = args.input
     detection_model_path = args.detection_model
     key_point_model = args.key_point_model
+    segmentation_model = args.segmentation_model
 
     process_image(img_path,
                   detection_model_path,
                   key_point_model,
+                  segmentation_model,
                   debug=args.debug)
 
 
