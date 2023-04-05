@@ -6,6 +6,7 @@ import numpy as np
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference
+from geometry.ellipse import get_ellipse_pts, fit_ellipse, cart_to_pol
 
 
 def read_args():
@@ -96,6 +97,14 @@ def plot_img(img, title='image'):
     cv2.destroyAllWindows()
 
 
+def plot_ellipse(image, x, y, params):
+    plt.imshow(image)
+    plt.plot(x, y, 'x')  # given points
+    x, y = get_ellipse_pts(params)
+    plt.plot(x, y)  # given points
+    plt.show()
+
+
 def process_image(img_path,
                   detection_model_path,
                   key_point_model,
@@ -131,6 +140,15 @@ def process_image(img_path,
 
     if debug:
         plot_key_points(cropped_img, key_point_list)
+
+    all_key_points = np.vstack(key_point_list)
+
+    coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
+    x0, y0, ap, bp, phi = cart_to_pol(coeffs)
+
+    if debug:
+        plot_ellipse(cropped_img, all_key_points[:, 0], all_key_points[:, 1],
+                     (x0, y0, ap, bp, phi))
 
 
 def main():
