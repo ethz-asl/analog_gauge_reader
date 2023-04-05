@@ -5,7 +5,7 @@ from scipy.spatial.distance import cdist
 
 
 def full_key_point_extraction(heatmaps,
-                              threshold=0.6,
+                              threshold=0.4,
                               bandwidth=5,
                               visualize=False):
     key_point_list = []
@@ -16,7 +16,7 @@ def full_key_point_extraction(heatmaps,
     return key_point_list
 
 
-def extract_key_points(heatmap, threshold=0.2, bandwidth=5, visualize=False):
+def extract_key_points(heatmap, threshold, bandwidth=5, visualize=False):
     """
     threshold is minimum confidence for points to be considered in clustering.
     increasing the threshold increases performance
@@ -30,7 +30,7 @@ def extract_key_points(heatmap, threshold=0.2, bandwidth=5, visualize=False):
 
     # if none detected with given threshold
     if coords.shape[0] == 0:
-        if threshold <= 0.05:
+        if threshold <= 0.1:
             print(f"No point with confidence at least {threshold} detected.")
             return coords
 

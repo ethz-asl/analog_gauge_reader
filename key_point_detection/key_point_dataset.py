@@ -6,9 +6,6 @@ from torch.utils.data import Dataset
 from PIL import Image
 
 # Constants
-N_HEATMAPS = 3
-N_CHANNELS = 50  # Number of intermediate channels for Nonlinearity
-INPUT_SIZE = (224, 224)
 
 TRAIN_PATH = 'train'
 IMG_PATH = 'images'

@@ -4,12 +4,13 @@ import time
 
 import matplotlib.pyplot as plt
 
-import torch
 from torchvision import transforms
 
-from key_point_extraction import full_key_point_extraction
 from key_point_dataset import KeypointImageDataSet, \
-    IMG_PATH, LABEL_PATH, INPUT_SIZE, TRAIN_PATH, RUN_PATH
+    IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH
+from key_point_detection.key_point_extraction import full_key_point_extraction
+from key_point_detection.model import load_model
+from key_point_detection.model import INPUT_SIZE
 
 HEATMAP_PREFIX = "H_"
 KEY_POINT_PREFIX = "K_"
@@ -47,16 +48,19 @@ class KeyPointVal:
 
     def validate_set(self, path, dataset):
         for index, data in enumerate(dataset):
+            print(index)
             image, annotation = data
 
             heatmaps = self.model(image.unsqueeze(0))
-
+            print("inference done")
             # take it as numpy array and decrease dimension by one
             heatmaps = heatmaps.detach().numpy().squeeze(0)
 
-            key_points = full_key_point_extraction(heatmaps)
+            key_points = full_key_point_extraction(heatmaps, threshold=0.6)
             key_points_true = full_key_point_extraction(
                 annotation.detach().numpy(), threshold=0.95)
+
+            print("key points extracted")
 
             # plot the heatmaps in the run folder
             heatmap_file_path = os.path.join(
@@ -160,7 +164,7 @@ def main():
     model_path = args.model_path
     base_path = args.data
 
-    model = torch.load(model_path)
+    model = load_model(model_path)
 
     validator = KeyPointVal(model, base_path)
     validator.validate()

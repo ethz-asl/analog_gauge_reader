@@ -1,6 +1,7 @@
 import argparse
 import cv2
 import matplotlib.pyplot as plt
+import numpy as np
 
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr
@@ -38,12 +39,13 @@ def crop_image(img, box):
 
 
 #
-def plot_bounding_box_img(img, boxes):
+def plot_bounding_box_img(image, boxes):
     """
     plot detected bounding boxes. boxes is the result of the yolov8 detection
     :param img: image to draw bounding boxes on
     :param boxes: list of bounding boxes
     """
+    img = np.copy(image)
     for box in boxes:
         bbox = box.xyxy[0].int()
         start_point = (int(bbox[0]), int(bbox[1]))
@@ -69,8 +71,6 @@ def plot_key_points(image, key_point_list):
     plt.figure(figsize=(12, 8))
 
     titles = ['Start', 'Middle', 'End']
-
-    image = image.permute(1, 2, 0)
 
     for i in range(3):
         key_points = key_point_list[i]
@@ -111,19 +111,26 @@ def process_image(img_path,
     # crop image to only gauge face
     cropped_img = crop_image(image, box)
 
+    # resize
+    cropped_img = cv2.resize(cropped_img,
+                             dsize=(224, 224),
+                             interpolation=cv2.INTER_LINEAR)
+
+    if debug:
+        plot_img(cropped_img)
+
     # ocr
     ocr_results = ocr(cropped_img, debug)
 
     if debug:
         plot_img(ocr_results['visualization'][0])
 
+    # detect key points
     key_point_inferencer = KeyPointInference(key_point_model)
-    key_point_list = key_point_inferencer.detect_key_points(cropped_img)
+    key_point_list = key_point_inferencer.detect_key_points(cropped_img, debug)
 
     if debug:
         plot_key_points(cropped_img, key_point_list)
-
-    return cropped_img
 
 
 def main():
