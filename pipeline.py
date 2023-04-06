@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from gauge_detection.detection_inference import detection_gauge_face
-# from ocr.ocr_inference import ocr
+from ocr.ocr_inference import ocr, plot_ocr
 from key_point_detection.key_point_inference import KeyPointInference
 from geometry.ellipse import get_ellipse_pts, fit_ellipse, cart_to_pol
 from segmentation.segmenation_inference import segment_gauge_needle, \
@@ -45,7 +45,6 @@ def crop_image(img, box):
     return cropped_img
 
 
-#
 def plot_bounding_box_img(image, boxes):
     """
     plot detected bounding boxes. boxes is the result of the yolov8 detection
@@ -71,7 +70,9 @@ def plot_bounding_box_img(image, boxes):
                             color=color,
                             thickness=1)
 
-    plot_img(img)
+    plt.figure()
+    plt.imshow(img)
+    plt.show()
 
 
 def plot_key_points(image, key_point_list):
@@ -81,7 +82,7 @@ def plot_key_points(image, key_point_list):
 
     for i in range(3):
         key_points = key_point_list[i]
-        plt.subplot(2, 3, i + 1)
+        plt.subplot(1, 3, i + 1)
         plt.imshow(image)
         plt.scatter(key_points[:, 0],
                     key_points[:, 1],
@@ -93,14 +94,6 @@ def plot_key_points(image, key_point_list):
     plt.tight_layout()
 
     plt.show()
-
-
-def plot_img(img, title='image'):
-    cv2.imshow(title, img)
-    cv2.waitKey(0)
-
-    # closing all open windows
-    cv2.destroyAllWindows()
 
 
 def plot_ellipse(image, x, y, params):
@@ -133,12 +126,14 @@ def process_image(img_path,
                              interpolation=cv2.INTER_LINEAR)
 
     if debug:
-        plot_img(cropped_img)
+        plt.imshow(cropped_img)
+        plt.show()
 
     # ocr
-    # ocr_results = ocr(cropped_img, debug)
-    # if debug:
-    #     plot_img(ocr_results['visualization'][0])
+    ocr_readings = ocr(cropped_img, debug)
+
+    if debug:
+        plot_ocr(cropped_img, ocr_readings)
 
     needle_mask_x, needle_mask_y = segment_gauge_needle(
         cropped_img, segmentation_model)
