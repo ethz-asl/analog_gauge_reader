@@ -81,7 +81,10 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
-    def plot_ellipse(self, x, y, ellipse_params, annotations=None):
+    def plot_ellipse(self, x, y, ellipse_params, title, annotations=None):
+        """
+        plot ellipse and points with coordinates (x,y)
+        """
         plt.figure()
 
         fig, ax = plt.subplots()
@@ -91,9 +94,7 @@ class Plotter:
 
         ax.scatter(x, y, marker='x', c='red')  # plot points
 
-        title = ''
         if annotations is not None:
-            title = 'projected'
             for x_coord, y_coord, annotation in zip(x, y, annotations):
                 ax.annotate(annotation, (x_coord, y_coord))
 
@@ -109,8 +110,7 @@ class Plotter:
         annotations = []
 
         for number in number_labels:
-            proj_point = get_point_from_angle(number.ellipse_theta,
-                                              ellipse_params)
+            proj_point = get_point_from_angle(number.theta, ellipse_params)
             projected_points.append(proj_point)
             annotations.append(number.reading)
 
@@ -119,9 +119,11 @@ class Plotter:
         if len(projected_points) == 1:
             np.expand_dims(projected_points_arr, axis=0)
 
-        self.plot_ellipse(projected_points_arr[:, 0], projected_points_arr[:,
-                                                                           1],
-                          ellipse_params, annotations)
+        self.plot_ellipse(projected_points_arr[:, 0],
+                          projected_points_arr[:, 1],
+                          ellipse_params,
+                          title='projected',
+                          annotations=annotations)
 
     def plot_ocr(self, readings, title):
         plt.figure()

@@ -12,7 +12,7 @@ class OCRReading:
 
         self.center = self._get_centroid()
 
-        self.ellipse_theta = None
+        self.theta = None
 
     def _get_centroid(self):
         x_mean = np.mean(self.polygon[:, 0])
@@ -28,4 +28,4 @@ class OCRReading:
             return False
 
     def set_theta(self, theta):
-        self.ellipse_theta = theta
+        self.theta = theta

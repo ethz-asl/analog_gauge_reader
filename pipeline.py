@@ -6,8 +6,9 @@ from plots import Plotter
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
-from geometry.ellipse import fit_ellipse, cart_to_pol, get_polar_angle
-from segmentation.segmenation_inference import segment_gauge_needle, \
+from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, get_polar_angle
+from geometry.angle_converter import AngleConverter
+from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line
 
 
@@ -59,7 +60,8 @@ def process_image(img_path, detection_model_path, key_point_model,
         print("-------------------")
         print("Gauge Detection")
 
-    # Gauge detection
+    # ------------------Gauge detection-------------------------
+
     box, all_boxes = detection_gauge_face(image, detection_model_path)
 
     if debug:
@@ -80,7 +82,8 @@ def process_image(img_path, detection_model_path, key_point_model,
         print("-------------------")
         print("OCR")
 
-    # ocr
+    # ------------------OCR-------------------------
+
     ocr_readings = ocr(cropped_img, debug)
 
     if debug:
@@ -98,9 +101,12 @@ def process_image(img_path, detection_model_path, key_point_model,
         print("-------------------")
         print("Segmentation")
 
+    # ------------------Segmentation-------------------------
+
     needle_mask_x, needle_mask_y = segment_gauge_needle(
         cropped_img, segmentation_model)
     needle_line_coeffs = get_fitted_line(needle_mask_x, needle_mask_y)
+    needle_line_start, needle_line_end = get_start_end_line(needle_mask_x)
 
     if debug:
         plotter.plot_segmented_line(needle_mask_x, needle_mask_y,
@@ -109,7 +115,8 @@ def process_image(img_path, detection_model_path, key_point_model,
         print("-------------------")
         print("Key Point Detection")
 
-    # detect key points
+    # ------------------Key Point Detection-------------------------
+
     key_point_inferencer = KeyPointInference(key_point_model)
     heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
     key_point_list = detect_key_points(heatmaps)
@@ -121,17 +128,20 @@ def process_image(img_path, detection_model_path, key_point_model,
         print("-------------------")
         print("Ellipse Fitting")
 
-    # fit ellipse to extracted key points
+    # ------------------Ellipse Fitting-------------------------
+
     all_key_points = np.vstack(key_point_list)
     coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
     ellipse_params = cart_to_pol(coeffs)
 
     if debug:
         plotter.plot_ellipse(all_key_points[:, 0], all_key_points[:, 1],
-                             ellipse_params)
+                             ellipse_params, 'key_points')
 
         print("-------------------")
         print("Projection")
+
+    # ------------------Project OCR Numbers to ellipse-------------------------
 
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)
@@ -139,6 +149,47 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     if debug:
         plotter.plot_project_points_ellipse(number_labels, ellipse_params)
+
+    # ------------------Project Needle to ellipse-------------------------
+
+    point_needle_ellipse = get_line_ellipse_point(
+        needle_line_coeffs, (needle_line_start, needle_line_end),
+        ellipse_params)
+
+    if debug:
+        plotter.plot_ellipse(point_needle_ellipse[0], point_needle_ellipse[1],
+                             ellipse_params, 'needle point')
+
+
+# ------------------Fit line to angles and get reading of needle-------------------------
+
+    needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
+
+    min_number = number_labels[0]
+    for number in number_labels:
+        if number.number < min_number.number:
+            min_number = number
+
+    if debug:
+        print(f"Minimum detected number is: {min_number.number}")
+    angle_converter = AngleConverter(min_number.theta)
+
+    angle_number_list = []
+    for number in number_labels:
+        angle_number_list.append(
+            (angle_converter.convert_angle(number.theta), number.number))
+
+    angle_number_arr = np.array(angle_number_list)
+    reading_line_coeff = np.polyfit(angle_number_arr[:, 0],
+                                    angle_number_arr[:, 1], 1)
+    reading_line = np.poly1d(reading_line_coeff)
+
+    needle_angle_conv = angle_converter.convert_angle(needle_angle)
+
+    reading = reading_line(needle_angle_conv)
+
+    if debug:
+        print(f"Final reading is: {reading}")
 
 
 def main():

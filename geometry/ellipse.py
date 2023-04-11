@@ -177,7 +177,7 @@ def get_line_ellipse_point(line_coeffs, x, ellipse_params):
     Take the intersection point that has the smallest distance to either start
     or end point of the needle
     :param line_coeffs:
-    :param x:
+    :param x: x coordinates of end and start point of line
     :param ellipse_params:
     :return:
     """
