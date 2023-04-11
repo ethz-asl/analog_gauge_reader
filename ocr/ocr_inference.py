@@ -51,7 +51,7 @@ def ocr(img, visualize=True):
     return readings
 
 
-def plot_ocr(img, readings):
+def plot_ocr(img, readings, title):
     plt.figure()
 
     threshold = 0.9
@@ -70,5 +70,5 @@ def plot_ocr(img, readings):
                                     facecolor='none')
             ax.add_patch(polygon_patch)
             ax.scatter(reading.center[0], reading.center[1])
-
+    plt.title(f"ocr results {title}")
     plt.show()

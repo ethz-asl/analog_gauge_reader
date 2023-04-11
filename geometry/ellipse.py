@@ -134,8 +134,7 @@ def get_polar_angle(point, ellipse_params):
     x_rotate = point_rotate[0]
     y_rotate = point_rotate[1]
 
-    # find with polar coordinates the point with same angle on ellipse,
-    # rotated and shifted projection
+    # find angle
     theta = np.arctan2(ap * y_rotate, bp * x_rotate)
 
     return theta

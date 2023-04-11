@@ -133,7 +133,16 @@ def process_image(img_path,
     ocr_readings = ocr(cropped_img, debug)
 
     if debug:
-        plot_ocr(cropped_img, ocr_readings)
+        plot_ocr(cropped_img, ocr_readings, title='full')
+
+    # get list of ocr readings that are the numbers
+    number_labels = []
+    for reading in ocr_readings:
+        if reading.isNumber():
+            number_labels.append(reading)
+
+    if debug:
+        plot_ocr(cropped_img, number_labels, title='numbers')
 
     needle_mask_x, needle_mask_y = segment_gauge_needle(
         cropped_img, segmentation_model)
