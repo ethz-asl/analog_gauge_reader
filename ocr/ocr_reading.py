@@ -7,10 +7,12 @@ class OCRReading:
         self.reading = reading
         self.confidence = confidence
 
-        if self.isNumber():
+        if self.is_number():
             self.number = float(self.reading)
 
         self.center = self._get_centroid()
+
+        self.ellipse_theta = None
 
     def _get_centroid(self):
         x_mean = np.mean(self.polygon[:, 0])
@@ -18,9 +20,12 @@ class OCRReading:
 
         return (x_mean, y_mean)
 
-    def isNumber(self):
+    def is_number(self):
         try:
             float(self.reading)
             return True
         except ValueError:
             return False
+
+    def set_theta(self, theta):
+        self.ellipse_theta = theta

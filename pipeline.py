@@ -6,7 +6,8 @@ import numpy as np
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr, plot_ocr
 from key_point_detection.key_point_inference import KeyPointInference
-from geometry.ellipse import get_ellipse_pts, fit_ellipse, cart_to_pol
+from geometry.ellipse import get_ellipse_pts, fit_ellipse, cart_to_pol, \
+    get_point_from_angle, get_polar_angle
 from segmentation.segmenation_inference import segment_gauge_needle, \
     get_fitted_line, plot_segmented_line
 
@@ -96,12 +97,46 @@ def plot_key_points(image, key_point_list):
     plt.show()
 
 
-def plot_ellipse(image, x, y, params):
-    plt.imshow(image)
-    plt.plot(x, y, 'x')  # given points
-    x, y = get_ellipse_pts(params)
-    plt.plot(x, y)  # given points
+def plot_ellipse(image, x, y, ellipse_params, annotations=None):
+    plt.figure()
+
+    fig, ax = plt.subplots()
+    fig.set_size_inches(8, 6)
+
+    ax.imshow(image)
+
+    ax.scatter(x, y, marker='x', c='red')  # plot points
+
+    title = ''
+    if annotations is not None:
+        title = 'projected'
+        for x_coord, y_coord, annotation in zip(x, y, annotations):
+            ax.annotate(annotation, (x_coord, y_coord))
+
+    x, y = get_ellipse_pts(ellipse_params)
+    plt.plot(x, y)  # plot ellipse
+
+    plt.title(f"Fitted ellipse {title}")
+    plt.savefig(f"/home/mreitsma/results/ellipse_results_{title}.jpg")
     plt.show()
+
+
+def plot_project_points_ellipse(image, number_labels, ellipse_params):
+    projected_points = []
+    annotations = []
+
+    for number in number_labels:
+        proj_point = get_point_from_angle(number.ellipse_theta, ellipse_params)
+        projected_points.append(proj_point)
+        annotations.append(number.reading)
+
+    projected_points_arr = np.array(projected_points)
+
+    if len(projected_points) == 1:
+        np.expand_dims(projected_points_arr, axis=0)
+
+    plot_ellipse(image, projected_points_arr[:, 0], projected_points_arr[:, 1],
+                 ellipse_params, annotations)
 
 
 def process_image(img_path,
@@ -138,7 +173,7 @@ def process_image(img_path,
     # get list of ocr readings that are the numbers
     number_labels = []
     for reading in ocr_readings:
-        if reading.isNumber():
+        if reading.is_number():
             number_labels.append(reading)
 
     if debug:
@@ -159,14 +194,21 @@ def process_image(img_path,
     if debug:
         plot_key_points(cropped_img, key_point_list)
 
+    # fit ellipse to extracted key points
     all_key_points = np.vstack(key_point_list)
-
     coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
-    x0, y0, ap, bp, phi = cart_to_pol(coeffs)
+    ellipse_params = cart_to_pol(coeffs)
 
     if debug:
         plot_ellipse(cropped_img, all_key_points[:, 0], all_key_points[:, 1],
-                     (x0, y0, ap, bp, phi))
+                     ellipse_params)
+
+    for number in number_labels:
+        theta = get_polar_angle(number.center, ellipse_params)
+        number.set_theta(theta)
+
+    if debug:
+        plot_project_points_ellipse(cropped_img, number_labels, ellipse_params)
 
 
 def main():
