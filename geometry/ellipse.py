@@ -113,7 +113,14 @@ def get_ellipse_pts(params, npts=100, tmin=0, tmax=2 * np.pi):
     return x, y
 
 
-def project_point(point, ellipse_params):
+def get_polar_angle(point, ellipse_params):
+    """
+    Formula taken from
+    https://www.petercollingridge.co.uk/tutorials/computational-geometry/finding-angle-around-ellipse/
+    Important: This doesn't calculate the actual angle
+    but the theta in the parametrization x = a*cos(theta), y=b*sin(theta)
+    See link if you want to get the actual angle.
+    """
     x0, y0, ap, bp, phi = ellipse_params
 
     # shift point and ellipse to origin
@@ -127,16 +134,18 @@ def project_point(point, ellipse_params):
     x_rotate = point_rotate[0]
     y_rotate = point_rotate[1]
 
-    # calculate angle of point to x axis
-    theta = np.arctan2(y_rotate, x_rotate)
-
     # find with polar coordinates the point with same angle on ellipse,
     # rotated and shifted projection
-    k = ap * bp / np.sqrt(
-        np.square(bp) * np.square(np.cos(theta)) +
-        np.square(ap) * np.square(np.sin(theta)))
-    x_p = k * np.cos(theta)
-    y_p = k * np.sin(theta)
+    theta = np.arctan2(ap * y_rotate, bp * x_rotate)
+
+    return theta
+
+
+def get_point_from_angle(theta, ellipse_params):
+    x0, y0, ap, bp, phi = ellipse_params
+
+    x_p = ap * np.cos(theta)
+    y_p = bp * np.sin(theta)
     projected_point = np.array([x_p, y_p])
 
     # rotate back
@@ -148,3 +157,8 @@ def project_point(point, ellipse_params):
     y_proj = rot_p[1] + y0
 
     return x_proj, y_proj
+
+
+def project_point(point, ellipse_params):
+    theta = get_polar_angle(point, ellipse_params)
+    return get_point_from_angle(theta, ellipse_params)
