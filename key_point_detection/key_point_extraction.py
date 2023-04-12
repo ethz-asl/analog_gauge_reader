@@ -4,12 +4,40 @@ from sklearn.cluster import MeanShift
 from scipy.spatial.distance import cdist
 
 
-def extract_key_points(heatmap, threshold, bandwidth, visualize=False):
+def full_key_point_extraction(heatmaps,
+                              threshold=0.4,
+                              bandwidth=5,
+                              visualize=False):
+    key_point_list = []
+    for i in range(heatmaps.shape[0]):
+        cluster_centers = extract_key_points(heatmaps[i], threshold, bandwidth,
+                                             visualize)
+        key_point_list.append(cluster_centers)
+    return key_point_list
+
+
+def extract_key_points(heatmap, threshold, bandwidth=5, visualize=False):
+    """
+    threshold is minimum confidence for points to be considered in clustering.
+    increasing the threshold increases performance
+    bandwidth is bandwidth parameter of Mean shift.
+    return extracted cluster centers
+    """
     # Get pixel coordinates of pixels with value greater than 0.5
     coords = np.argwhere(heatmap > threshold)
-
     # swap coordinates
     coords[:, [1, 0]] = coords[:, [0, 1]]
+
+    # if none detected with given threshold
+    if coords.shape[0] == 0:
+        if threshold <= 0.1:
+            print(f"No point with confidence at least {threshold} detected.")
+            return coords
+
+        new_threshold = threshold / 2
+        print(f"No point with confidence at least {threshold} detected. "
+              f"Trying threshold {new_threshold}")
+        return extract_key_points(heatmap, threshold=new_threshold)
 
     # Perform mean shift clustering
     ms = MeanShift(bandwidth=bandwidth, n_jobs=-1)
@@ -30,12 +58,18 @@ def extract_key_points(heatmap, threshold, bandwidth, visualize=False):
                     zorder=10)
         plt.show()
 
+    return cluster_centers
 
-def plot_key_points(image, key_points):
+
+def plot_key_points(image, key_points, file_path, plot=False):
     plt.imshow(image)
     plt.scatter(key_points[:, 0], key_points[:, 1], s=50, c='red', marker='x')
-    # show the plot
-    plt.show()
+    # save plot
+    plt.savefig(file_path, bbox_inches='tight')
+
+    # Show the plot
+    if plot:
+        plt.show()
 
 
 def key_point_metrics(predicted, ground_truth, threshold=5):

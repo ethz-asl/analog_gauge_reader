@@ -82,7 +82,6 @@ def cart_to_pol(coeffs):
     r = (bp / ap)**2
     if r > 1:
         r = 1 / r
-    e = np.sqrt(1 - r)
 
     # The angle of anticlockwise rotation of the major-axis from x-axis.
     if b == 0:
@@ -96,7 +95,7 @@ def cart_to_pol(coeffs):
         phi += np.pi / 2
     phi = phi % np.pi
 
-    return x0, y0, ap, bp, e, phi
+    return x0, y0, ap, bp, phi
 
 
 def get_ellipse_pts(params, npts=100, tmin=0, tmax=2 * np.pi):
