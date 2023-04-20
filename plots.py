@@ -27,6 +27,12 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
+    def plot_ocr_visualization(self, vis):
+        plt.figure()
+        plt.imshow(vis)
+        path = os.path.join(self.run_path, "ocr_visualization_results.jpg")
+        plt.savefig(path)
+
     def plot_bounding_box_img(self, boxes):
         """
         plot detected bounding boxes. boxes is the result of the yolov8 detection
@@ -50,7 +56,7 @@ class Plotter:
                                 start_point,
                                 end_point,
                                 color=color,
-                                thickness=1)
+                                thickness=5)
 
         plt.figure()
         plt.imshow(img)
@@ -81,9 +87,15 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
-    def plot_ellipse(self, x, y, ellipse_params, title, annotations=None):
+    def plot_ellipse(self,
+                     points,
+                     ellipse_params,
+                     title,
+                     annotations=None,
+                     annotation_colors=None):
         """
-        plot ellipse and points with coordinates (x,y)
+        plot ellipse and points with annotations.
+        points is a 2d numpy array with one point per row
         """
         plt.figure()
 
@@ -92,11 +104,17 @@ class Plotter:
 
         ax.imshow(self.image)
 
-        ax.scatter(x, y, marker='x', c='red')  # plot points
+        x = points[:, 0]
+        y = points[:, 1]
 
-        if annotations is not None:
-            for x_coord, y_coord, annotation in zip(x, y, annotations):
-                ax.annotate(annotation, (x_coord, y_coord))
+        ax.scatter(x, y, marker='x', c='red', s=50)  # plot points
+
+        if annotations is not None and annotation_colors is not None:
+            for x_coord, y_coord, annotation, color in zip(
+                    x, y, annotations, annotation_colors):
+                ax.annotate(annotation, (x_coord, y_coord),
+                            fontsize=20,
+                            c=color)
 
         x, y = get_ellipse_pts(ellipse_params)
         plt.plot(x, y)  # plot ellipse
@@ -119,11 +137,43 @@ class Plotter:
         if len(projected_points) == 1:
             np.expand_dims(projected_points_arr, axis=0)
 
-        self.plot_ellipse(projected_points_arr[:, 0],
-                          projected_points_arr[:, 1],
+        ocr_color = '#ff7600'
+        annotation_colors = [ocr_color for _ in annotations]
+
+        self.plot_ellipse(projected_points_arr,
                           ellipse_params,
                           title='projected',
-                          annotations=annotations)
+                          annotations=annotations,
+                          annotation_colors=annotation_colors)
+
+    def plot_final_reading_ellipse(self, number_labels, needle_point, reading,
+                                   ellipse_params):
+        projected_points = []
+        annotations = []
+
+        for number in number_labels:
+            proj_point = get_point_from_angle(number.theta, ellipse_params)
+            projected_points.append(proj_point)
+            annotations.append(number.reading)
+
+        projected_points.append(needle_point)
+        annotations.append(reading)
+
+        projected_points_arr = np.array(projected_points)
+
+        if len(projected_points) == 1:
+            np.expand_dims(projected_points_arr, axis=0)
+
+        ocr_color = '#ff7600'
+        final_reading_color = '#00ccff'
+        annotation_colors = [ocr_color for _ in annotations]
+        annotation_colors[-1] = final_reading_color
+
+        self.plot_ellipse(projected_points_arr,
+                          ellipse_params,
+                          title='final',
+                          annotations=annotations,
+                          annotation_colors=annotation_colors)
 
     def plot_ocr(self, readings, title):
         plt.figure()

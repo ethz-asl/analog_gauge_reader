@@ -179,7 +179,7 @@ def get_line_ellipse_point(line_coeffs, x, ellipse_params):
     :param line_coeffs:
     :param x: x coordinates of end and start point of line
     :param ellipse_params:
-    :return:
+    :return: numpy array with x and y coordinate
     """
     intersection_points = find_line_ellipse_intersection(
         line_coeffs, x, ellipse_params)

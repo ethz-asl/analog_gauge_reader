@@ -1,5 +1,4 @@
 from mmocr.apis import MMOCRInferencer
-import matplotlib.pyplot as plt
 import numpy as np
 
 from ocr.ocr_reading import OCRReading
@@ -21,11 +20,7 @@ def ocr(img, visualize=True):
     try:
         results = ocr_model(img, return_vis=visualize)
 
-        if visualize:
-            visualization = results['visualization'][0]
-            plt.figure()
-            plt.imshow(visualization)
-            plt.show()
+        visualization = results['visualization'][0]
 
         polygons = results['predictions'][0]['det_polygons']
 
@@ -46,5 +41,8 @@ def ocr(img, visualize=True):
 
     except IndexError:
         print("nothing detected")
+
+    if visualize:
+        return readings, visualization
 
     return readings

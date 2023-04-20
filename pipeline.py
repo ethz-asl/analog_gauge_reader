@@ -11,6 +11,8 @@ from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line
 
+OCR_THRESHOLD = 0.9
+
 
 def read_args():
     parser = argparse.ArgumentParser()
@@ -84,15 +86,16 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     # ------------------OCR-------------------------
 
-    ocr_readings = ocr(cropped_img, debug)
+    ocr_readings, ocr_visualization = ocr(cropped_img, debug)
 
     if debug:
+        plotter.plot_ocr_visualization(ocr_visualization)
         plotter.plot_ocr(ocr_readings, title='full')
 
     # get list of ocr readings that are the numbers
     number_labels = []
     for reading in ocr_readings:
-        if reading.is_number():
+        if reading.is_number() and reading.confidence > OCR_THRESHOLD:
             number_labels.append(reading)
 
     if debug:
@@ -135,16 +138,21 @@ def process_image(img_path, detection_model_path, key_point_model,
     ellipse_params = cart_to_pol(coeffs)
 
     if debug:
-        plotter.plot_ellipse(all_key_points[:, 0], all_key_points[:, 1],
-                             ellipse_params, 'key_points')
+        plotter.plot_ellipse(all_key_points, ellipse_params, 'key_points')
 
         print("-------------------")
         print("Projection")
 
     # ------------------Project OCR Numbers to ellipse-------------------------
 
+    if len(number_labels) == 0:
+        print("Didn't find any numbers with ocr")
+        return
+
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)
+        if theta < 0:
+            theta = 2 * np.pi + theta
         number.set_theta(theta)
 
     if debug:
@@ -157,13 +165,15 @@ def process_image(img_path, detection_model_path, key_point_model,
         ellipse_params)
 
     if debug:
-        plotter.plot_ellipse(point_needle_ellipse[0], point_needle_ellipse[1],
+        plotter.plot_ellipse(point_needle_ellipse.reshape(1, 2),
                              ellipse_params, 'needle point')
 
 
 # ------------------Fit line to angles and get reading of needle-------------------------
 
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
+    if needle_angle < 0:
+        needle_angle = 2 * np.pi + needle_angle
 
     min_number = number_labels[0]
     for number in number_labels:
@@ -190,6 +200,8 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     if debug:
         print(f"Final reading is: {reading}")
+        plotter.plot_final_reading_ellipse([], point_needle_ellipse,
+                                           round(reading, 1), ellipse_params)
 
 
 def main():
