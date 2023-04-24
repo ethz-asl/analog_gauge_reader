@@ -22,7 +22,11 @@ TEST_PATH = 'test'
 
 
 class KeyPointVal:
-    def __init__(self, model, base_path):
+    def __init__(self, model, base_path, time_str=None):
+
+        self.time_str = time_str if time_str is not None else time.strftime(
+            "%Y%m%d-%H%M%S")
+
         train_image_folder = os.path.join(base_path, TRAIN_PATH, IMG_PATH)
         train_annotation_folder = os.path.join(base_path, TRAIN_PATH,
                                                LABEL_PATH)
@@ -74,8 +78,7 @@ class KeyPointVal:
                             key_point_file_path)
 
     def validate(self):
-        time_str = time.strftime("%Y%m%d-%H%M%S")
-        run_path = os.path.join(self.base_path, RUN_PATH + '_' + time_str)
+        run_path = os.path.join(self.base_path, RUN_PATH + '_' + self.time_str)
         train_path = os.path.join(run_path, TRAIN_PATH)
         val_path = os.path.join(run_path, VAL_PATH)
 

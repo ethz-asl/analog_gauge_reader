@@ -11,7 +11,7 @@ from torchvision import transforms
 from key_point_dataset import RUN_PATH, KeypointImageDataSet, \
     TRAIN_PATH, IMG_PATH, LABEL_PATH
 from key_point_validator import KeyPointVal
-from model import ENCODER_MODEL_NAME, NUM_LAYERS, Encoder, Decoder, EncoderDecoder, \
+from model import ENCODER_MODEL_NAME, Encoder, Decoder, EncoderDecoder, \
     INPUT_SIZE, N_HEATMAPS, N_CHANNELS
 
 BATCH_SIZE = 8
@@ -26,9 +26,6 @@ class KeyPointTrain:
         annotation_folder = os.path.join(base_path, TRAIN_PATH, LABEL_PATH)
 
         self.feature_extractor = Encoder(pretrained=True)
-
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
 
         self.transform = transforms.Compose([
             transforms.Resize(INPUT_SIZE),
@@ -49,10 +46,10 @@ class KeyPointTrain:
         self.full_model = EncoderDecoder(self.feature_extractor, self.decoder)
 
     def _create_decoder(self):
-        encoded_shape = self.feature_extractor.get_feature_shape()
-        n_feature_channels = encoded_shape[1]
+        n_feature_channels = self.feature_extractor.get_number_output_channels(
+        )
         if self.debug:
-            print(f"Number of feature channels is {encoded_shape}")
+            print(f"Number of feature channels is {n_feature_channels}")
         return Decoder(n_feature_channels, N_CHANNELS, INPUT_SIZE, N_HEATMAPS)
 
     def train(self, num_epochs, learning_rate):
@@ -88,6 +85,8 @@ class KeyPointTrain:
                 running_loss += loss.item()
 
             loss = running_loss / len(self.train_dataloader)
+
+            # print new learning rate and loss
             before_lr = optimizer.param_groups[0]["lr"]
             scheduler.step(loss)
             after_lr = optimizer.param_groups[0]["lr"]
@@ -138,7 +137,7 @@ def main():
     # save parameters to text file
     params = {
         'encoder': ENCODER_MODEL_NAME,
-        'number of encoder layers': NUM_LAYERS,
+        'number of decoder channels': N_CHANNELS,
         'initial learning rate': learning_rate,
         'epochs': num_epochs,
         'batch size': BATCH_SIZE
@@ -148,7 +147,7 @@ def main():
     write_parameter_file(param_file_path, params)
 
     if val:
-        validator = KeyPointVal(model, base_path)
+        validator = KeyPointVal(model, base_path, time_str)
         validator.validate()
 
 
