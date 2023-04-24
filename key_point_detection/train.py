@@ -8,55 +8,75 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from key_point_detection.key_point_dataset import FeatureExtractor, KeypointImageDataSet, \
+from key_point_dataset import RUN_PATH, KeypointImageDataSet, \
     TRAIN_PATH, IMG_PATH, LABEL_PATH
-from key_point_detection.key_point_validator import KeyPointVal
-from key_point_detection.model import Encoder, Decoder, EncoderDecoder, \
+from key_point_validator import KeyPointVal
+from model import ENCODER_MODEL_NAME, NUM_LAYERS, Encoder, Decoder, EncoderDecoder, \
     INPUT_SIZE, N_HEATMAPS, N_CHANNELS
+
+BATCH_SIZE = 8
 
 
 class KeyPointTrain:
     def __init__(self, base_path, debug):
+
+        self.debug = debug
 
         image_folder = os.path.join(base_path, TRAIN_PATH, IMG_PATH)
         annotation_folder = os.path.join(base_path, TRAIN_PATH, LABEL_PATH)
 
         self.feature_extractor = Encoder(pretrained=True)
 
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
+
         self.transform = transforms.Compose([
             transforms.Resize(INPUT_SIZE),
             transforms.ToTensor(),
             # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-            FeatureExtractor(self.feature_extractor)
         ])
         self.train_dataset = KeypointImageDataSet(
             img_dir=image_folder,
             annotations_dir=annotation_folder,
             transform=self.transform)
         self.train_dataloader = DataLoader(self.train_dataset,
-                                           batch_size=32,
+                                           batch_size=BATCH_SIZE,
                                            shuffle=True,
                                            num_workers=4)
 
         self.decoder = self._create_decoder()
 
-        self.debug = debug
+        self.full_model = EncoderDecoder(self.feature_extractor, self.decoder)
 
     def _create_decoder(self):
-        n_feature_channels = self.feature_extractor.get_feature_shape()[1]
+        encoded_shape = self.feature_extractor.get_feature_shape()
+        n_feature_channels = encoded_shape[1]
+        if self.debug:
+            print(f"Number of feature channels is {encoded_shape}")
         return Decoder(n_feature_channels, N_CHANNELS, INPUT_SIZE, N_HEATMAPS)
 
     def train(self, num_epochs, learning_rate):
 
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if self.debug:
+            print(f"Using {device} device")
+
+        self.full_model.to(device)
+
         criterion = nn.MSELoss()
-        optimizer = optim.Adam(self.decoder.parameters(), lr=learning_rate)
-        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
+        optimizer = optim.Adam(self.full_model.parameters(), lr=learning_rate)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                         mode='min',
+                                                         factor=0.5,
+                                                         patience=10)
+
         # Train the model
         for epoch in range(num_epochs):
             running_loss = 0.0
-            for features, annotations in self.train_dataloader:
+            for inputs, annotations in self.train_dataloader:
                 # Forward pass
-                outputs = self.decoder(features)
+                inputs, annotations = inputs.to(device), annotations.to(device)
+                outputs = self.full_model(inputs)
                 loss = criterion(outputs, annotations)
 
                 # Backward pass and optimization
@@ -67,15 +87,17 @@ class KeyPointTrain:
 
                 running_loss += loss.item()
 
+            loss = running_loss / len(self.train_dataloader)
             before_lr = optimizer.param_groups[0]["lr"]
-            scheduler.step()
+            scheduler.step(loss)
             after_lr = optimizer.param_groups[0]["lr"]
-            print(
-                f"Epoch {epoch + 1}: Loss = {running_loss / len(self.train_dataloader)}, "
-                f"lr {before_lr} -> {after_lr} ")
+            print(f"Epoch {epoch + 1}: Loss = {loss}, "
+                  f"lr {before_lr} -> {after_lr} ")
+
+        print('Finished Training')
 
     def get_full_model(self):
-        return EncoderDecoder(self.feature_extractor, self.decoder)
+        return self.full_model
 
 
 def main():
@@ -105,14 +127,35 @@ def main():
     trainer.train(num_epochs, learning_rate)
     model = trainer.get_full_model()
 
-    # save model
     time_str = time.strftime("%Y%m%d-%H%M%S")
-    model_path = os.path.join(base_path, f"model_{time_str}.pt")
+    run_path = RUN_PATH + '_' + time_str
+    os.makedirs(os.path.join(base_path, run_path), exist_ok=True)
+
+    # save model
+    model_path = os.path.join(base_path, run_path, f"model_{time_str}.pt")
     torch.save(model.state_dict(), model_path)
+
+    # save parameters to text file
+    params = {
+        'encoder': ENCODER_MODEL_NAME,
+        'number of encoder layers': NUM_LAYERS,
+        'initial learning rate': learning_rate,
+        'epochs': num_epochs,
+        'batch size': BATCH_SIZE
+    }
+
+    param_file_path = os.path.join(base_path, run_path, "paramaters.txt")
+    write_parameter_file(param_file_path, params)
 
     if val:
         validator = KeyPointVal(model, base_path)
         validator.validate()
+
+
+def write_parameter_file(filename, params):
+    with open(filename, 'w') as f:
+        for key, value in params.items():
+            f.write(f"{key}: {value}\n")
 
 
 def read_args():
@@ -132,12 +175,7 @@ def read_args():
                         type=str,
                         required=True,
                         help="Base path of data")
-    parser.add_argument(
-        '--val',
-        type=bool,
-        required=False,
-        default=False,
-        help="Should validation be done after training, saving images")
+    parser.add_argument('--val', action='store_true')
     parser.add_argument('--debug', action='store_true')
 
     return parser.parse_args()

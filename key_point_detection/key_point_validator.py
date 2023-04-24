@@ -2,15 +2,17 @@ import argparse
 import os
 import time
 
+import matplotlib
 import matplotlib.pyplot as plt
 
 from torchvision import transforms
 
 from key_point_dataset import KeypointImageDataSet, \
     IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH
-from key_point_detection.key_point_extraction import full_key_point_extraction
-from key_point_detection.model import load_model
-from key_point_detection.model import INPUT_SIZE
+from key_point_extraction import full_key_point_extraction
+from model import load_model, INPUT_SIZE
+
+matplotlib.use('Agg')
 
 HEATMAP_PREFIX = "H_"
 KEY_POINT_PREFIX = "K_"
@@ -65,14 +67,11 @@ class KeyPointVal:
             # plot the heatmaps in the run folder
             heatmap_file_path = os.path.join(
                 path, HEATMAP_PREFIX + dataset.get_name(index) + '.jpg')
-            plot_heatmaps(heatmaps, annotation, heatmap_file_path, plot=False)
+            plot_heatmaps(heatmaps, annotation, heatmap_file_path)
             key_point_file_path = os.path.join(
                 path, KEY_POINT_PREFIX + dataset.get_name(index) + '.jpg')
-            plot_key_points(image,
-                            key_points,
-                            key_points_true,
-                            key_point_file_path,
-                            plot=False)
+            plot_key_points(image, key_points, key_points_true,
+                            key_point_file_path)
 
     def validate(self):
         time_str = time.strftime("%Y%m%d-%H%M%S")
@@ -80,15 +79,15 @@ class KeyPointVal:
         train_path = os.path.join(run_path, TRAIN_PATH)
         val_path = os.path.join(run_path, VAL_PATH)
 
-        os.mkdir(run_path)
-        os.mkdir(train_path)
-        os.mkdir(val_path)
+        os.makedirs(run_path, exist_ok=True)
+        os.makedirs(train_path, exist_ok=True)
+        os.makedirs(val_path, exist_ok=True)
 
         self.validate_set(train_path, self.train_dataset)
         self.validate_set(val_path, self.val_dataset)
 
 
-def plot_heatmaps(heatmaps1, heatmaps2, filename=None, plot=False):
+def plot_heatmaps(heatmaps1, heatmaps2, filename):
     plt.figure(figsize=(12, 8))
 
     titles = ['Start', 'Middle', 'End']
@@ -106,19 +105,10 @@ def plot_heatmaps(heatmaps1, heatmaps2, filename=None, plot=False):
     # Adjust the layout of the subplots
     plt.tight_layout()
 
-    if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
-
-    # Show the plots
-    if plot:
-        plt.show()
+    plt.savefig(filename, bbox_inches='tight')
 
 
-def plot_key_points(image,
-                    key_points_pred,
-                    key_points_true,
-                    filename=None,
-                    plot=False):
+def plot_key_points(image, key_points_pred, key_points_true, filename):
     plt.figure(figsize=(12, 8))
 
     titles = ['Start', 'Middle', 'End']
@@ -150,12 +140,7 @@ def plot_key_points(image,
     # Adjust the layout of the subplots
     plt.tight_layout()
 
-    if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
-
-    # Show the plots
-    if plot:
-        plt.show()
+    plt.savefig(filename, bbox_inches='tight')
 
 
 def main():
