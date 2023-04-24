@@ -10,6 +10,11 @@ def full_key_point_extraction(heatmaps,
                               visualize=False):
     key_point_list = []
     for i in range(heatmaps.shape[0]):
+        middle = i == 1
+        if middle:
+            threshold = 0.6
+        else:
+            threshold = 0.8
         cluster_centers = extract_key_points(heatmaps[i], threshold, bandwidth,
                                              visualize)
         key_point_list.append(cluster_centers)
@@ -23,10 +28,18 @@ def extract_key_points(heatmap, threshold, bandwidth=5, visualize=False):
     bandwidth is bandwidth parameter of Mean shift.
     return extracted cluster centers
     """
+
     # Get pixel coordinates of pixels with value greater than 0.5
     coords = np.argwhere(heatmap > threshold)
     # swap coordinates
     coords[:, [1, 0]] = coords[:, [0, 1]]
+
+    # remove key points too close to edge
+    edge = 30
+    coords = coords[coords[:, 0] >= edge]
+    coords = coords[coords[:, 1] >= edge]
+    coords = coords[coords[:, 0] <= 224 - edge]
+    coords = coords[coords[:, 1] <= 224 - edge]
 
     # if none detected with given threshold
     if coords.shape[0] == 0:
