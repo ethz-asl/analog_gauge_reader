@@ -6,7 +6,6 @@ import torch
 
 from torch import nn, optim
 from torch.utils.data import DataLoader
-from torchvision import transforms
 
 from key_point_dataset import RUN_PATH, KeypointImageDataSet, \
     TRAIN_PATH, IMG_PATH, LABEL_PATH
@@ -27,15 +26,11 @@ class KeyPointTrain:
 
         self.feature_extractor = Encoder(pretrained=True)
 
-        self.transform = transforms.Compose([
-            transforms.Resize(INPUT_SIZE),
-            transforms.ToTensor(),
-            # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-        ])
         self.train_dataset = KeypointImageDataSet(
             img_dir=image_folder,
             annotations_dir=annotation_folder,
-            transform=self.transform)
+            train=True,
+            val=False)
         self.train_dataloader = DataLoader(self.train_dataset,
                                            batch_size=BATCH_SIZE,
                                            shuffle=True,

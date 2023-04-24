@@ -10,7 +10,7 @@ from torchvision import transforms
 from key_point_dataset import KeypointImageDataSet, \
     IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH
 from key_point_extraction import full_key_point_extraction
-from model import load_model, INPUT_SIZE
+from model import load_model
 
 matplotlib.use('Agg')
 
@@ -36,26 +36,23 @@ class KeyPointVal:
 
         self.base_path = base_path
         self.model = model
-        self.transform = transforms.Compose([
-            transforms.Resize(INPUT_SIZE),
-            transforms.ToTensor(),
-            # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-        ])
 
         self.train_dataset = KeypointImageDataSet(
             img_dir=train_image_folder,
             annotations_dir=train_annotation_folder,
-            transform=self.transform)
+            train=False,
+            val=True)
 
         self.val_dataset = KeypointImageDataSet(
             img_dir=val_image_folder,
             annotations_dir=val_annotation_folder,
-            transform=self.transform)
+            train=False,
+            val=True)
 
     def validate_set(self, path, dataset):
         for index, data in enumerate(dataset):
             print(index)
-            image, annotation = data
+            image, original_image, annotation = data
 
             heatmaps = self.model(image.unsqueeze(0))
             print("inference done")
@@ -74,7 +71,8 @@ class KeyPointVal:
             plot_heatmaps(heatmaps, annotation, heatmap_file_path)
             key_point_file_path = os.path.join(
                 path, KEY_POINT_PREFIX + dataset.get_name(index) + '.jpg')
-            plot_key_points(image, key_points, key_points_true,
+            original_image_tensor = transforms.ToTensor()(original_image)
+            plot_key_points(original_image_tensor, key_points, key_points_true,
                             key_point_file_path)
 
     def validate(self):
