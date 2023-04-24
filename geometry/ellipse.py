@@ -5,6 +5,8 @@ import numpy as np
 # As described in the blog post this implements a numerically stable version
 # of the ellipse fitting, described here https://autotrace.sourceforge.net/WSCG98.pdf
 
+# -------------Fit Ellipse to Points ---------------
+
 
 def fit_ellipse(x, y):
     """
@@ -113,7 +115,17 @@ def get_ellipse_pts(params, npts=100, tmin=0, tmax=2 * np.pi):
     return x, y
 
 
-def project_point(point, ellipse_params):
+# ------------------Project Point To Ellipse-----------------------------
+
+
+def get_polar_angle(point, ellipse_params):
+    """
+    Formula taken from
+    https://www.petercollingridge.co.uk/tutorials/computational-geometry/finding-angle-around-ellipse/
+    Important: This doesn't calculate the actual angle
+    but the theta in the parametrization x = a*cos(theta), y=b*sin(theta)
+    See link if you want to get the actual angle.
+    """
     x0, y0, ap, bp, phi = ellipse_params
 
     # shift point and ellipse to origin
@@ -127,16 +139,17 @@ def project_point(point, ellipse_params):
     x_rotate = point_rotate[0]
     y_rotate = point_rotate[1]
 
-    # calculate angle of point to x axis
-    theta = np.arctan2(y_rotate, x_rotate)
+    # find angle
+    theta = np.arctan2(ap * y_rotate, bp * x_rotate)
 
-    # find with polar coordinates the point with same angle on ellipse,
-    # rotated and shifted projection
-    k = ap * bp / np.sqrt(
-        np.square(bp) * np.square(np.cos(theta)) +
-        np.square(ap) * np.square(np.sin(theta)))
-    x_p = k * np.cos(theta)
-    y_p = k * np.sin(theta)
+    return theta
+
+
+def get_point_from_angle(theta, ellipse_params):
+    x0, y0, ap, bp, phi = ellipse_params
+
+    x_p = ap * np.cos(theta)
+    y_p = bp * np.sin(theta)
     projected_point = np.array([x_p, y_p])
 
     # rotate back
@@ -148,3 +161,104 @@ def project_point(point, ellipse_params):
     y_proj = rot_p[1] + y0
 
     return x_proj, y_proj
+
+
+def project_point(point, ellipse_params):
+    theta = get_polar_angle(point, ellipse_params)
+    return get_point_from_angle(theta, ellipse_params)
+
+
+# --------------------Intersect Line and Ellipse------------------------------
+
+
+def get_line_ellipse_point(line_coeffs, x, ellipse_params):
+    """
+    Most times you have two intersection points.
+    Take the intersection point that has the smallest distance to either start
+    or end point of the needle
+    :param line_coeffs:
+    :param x: x coordinates of end and start point of line
+    :param ellipse_params:
+    :return: numpy array with x and y coordinate
+    """
+    intersection_points = find_line_ellipse_intersection(
+        line_coeffs, x, ellipse_params)
+
+    if intersection_points.shape[1] == 2:
+        line = np.poly1d(line_coeffs)
+        y = line(x)
+        start_end_points = np.vstack((x, y)).T
+
+        intersection_points = intersection_points.T
+
+        distances = np.zeros((2, 2))
+        for i in range(2):
+            for j in range(2):
+                distances[i, j] = np.linalg.norm(start_end_points[i] -
+                                                 intersection_points[j])
+
+        min_idx = np.unravel_index(distances.argmin(), distances.shape)[1]
+        return intersection_points[min_idx]
+
+    return intersection_points
+
+
+def find_line_ellipse_intersection(line_coeffs, x, ellipse_params):
+    """
+    If no point exists return empty array with shape (2,0)
+    :param line_coeffs:
+    :param x: two points on the line
+    :param ellipse_params:
+    :return: np array with x and y vertically stacked
+    """
+
+    x0, y0 = ellipse_params[0:2]
+    phi = ellipse_params[4]
+
+    line = np.poly1d(line_coeffs)
+    y = line(x)
+
+    x_shift = x - x0
+    y_shift = y - y0
+    points_shift = np.vstack((x_shift, y_shift))
+
+    # rotate point and ellipse to align it with x and y axis
+    R = np.array([[np.cos(-phi), -np.sin(-phi)], [np.sin(-phi), np.cos(-phi)]])
+    point_rotate = R @ points_shift
+    x_rotate = point_rotate[0, :]
+    y_rotate = point_rotate[1, :]
+
+    line_coeffs_rot = np.polyfit(x_rotate, y_rotate, 1)
+
+    intersection_points_centered = find_intersection_points_centered(
+        line_coeffs_rot, ellipse_params)
+
+    R_inv = np.array([[np.cos(phi), -np.sin(phi)], [np.sin(phi), np.cos(phi)]])
+    intersection_points = R_inv @ intersection_points_centered
+
+    # shift back
+    x = intersection_points[0, :] + x0
+    y = intersection_points[1, :] + y0
+
+    x_real = x.real[abs(x.imag) < 1e-5]
+    y_real = y.real[abs(x.imag) < 1e-5]
+
+    return np.vstack((x_real, y_real))
+
+
+def find_intersection_points_centered(line_coeffs, ellipse_params):
+    line = np.poly1d(line_coeffs)
+
+    ap, bp = ellipse_params[2:4]
+
+    m = line_coeffs[0]
+    c = line_coeffs[1]
+
+    a = np.square(ap) * np.square(m) + np.square(bp)
+    b = 2 * np.square(ap) * m * c
+    c = np.square(ap) * (np.square(c) - np.square(bp))
+
+    x_intersected = np.roots([a, b, c])
+    y_intersected = line(x_intersected)
+
+    return np.vstack((x_intersected, y_intersected))

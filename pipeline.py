@@ -1,14 +1,17 @@
 import argparse
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 
+from plots import Plotter
 from gauge_detection.detection_inference import detection_gauge_face
-from ocr.ocr_inference import ocr, plot_ocr
-from key_point_detection.key_point_inference import KeyPointInference
-from geometry.ellipse import get_ellipse_pts, fit_ellipse, cart_to_pol
-from segmentation.segmenation_inference import segment_gauge_needle, \
-    get_fitted_line, plot_segmented_line
+from ocr.ocr_inference import ocr
+from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
+from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, get_polar_angle
+from geometry.angle_converter import AngleConverter
+from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
+    get_fitted_line
+
+OCR_THRESHOLD = 0.9
 
 
 def read_args():
@@ -29,6 +32,10 @@ def read_args():
                         type=str,
                         required=True,
                         help="Path to segmentation model")
+    parser.add_argument('--base_path',
+                        type=str,
+                        required=True,
+                        help="Path where run folder is stored")
     parser.add_argument('--debug', action='store_true')
     return parser.parse_args()
 
@@ -45,77 +52,22 @@ def crop_image(img, box):
     return cropped_img
 
 
-def plot_bounding_box_img(image, boxes):
-    """
-    plot detected bounding boxes. boxes is the result of the yolov8 detection
-    :param img: image to draw bounding boxes on
-    :param boxes: list of bounding boxes
-    """
-    img = np.copy(image)
-    for box in boxes:
-        bbox = box.xyxy[0].int()
-        start_point = (int(bbox[0]), int(bbox[1]))
-        end_point = (int(bbox[2]), int(bbox[3]))
-
-        color_face = (0, 255, 0)
-        color_needle = (255, 0, 0)
-        if box.cls == 0:
-            color = color_face
-        else:
-            color = color_needle
-
-        img = cv2.rectangle(img,
-                            start_point,
-                            end_point,
-                            color=color,
-                            thickness=1)
-
-    plt.figure()
-    plt.imshow(img)
-    plt.show()
-
-
-def plot_key_points(image, key_point_list):
-    plt.figure(figsize=(12, 8))
-
-    titles = ['Start', 'Middle', 'End']
-
-    for i in range(3):
-        key_points = key_point_list[i]
-        plt.subplot(1, 3, i + 1)
-        plt.imshow(image)
-        plt.scatter(key_points[:, 0],
-                    key_points[:, 1],
-                    s=50,
-                    c='red',
-                    marker='x')
-        plt.title(f'Predicted Key Point {titles[i]}')
-
-    plt.tight_layout()
-
-    plt.show()
-
-
-def plot_ellipse(image, x, y, params):
-    plt.imshow(image)
-    plt.plot(x, y, 'x')  # given points
-    x, y = get_ellipse_pts(params)
-    plt.plot(x, y)  # given points
-    plt.show()
-
-
-def process_image(img_path,
-                  detection_model_path,
-                  key_point_model,
-                  segmentation_model,
-                  debug=False):
+def process_image(img_path, detection_model_path, key_point_model,
+                  segmentation_model, base_path, debug):
     image = cv2.imread(img_path)
 
-    # Gauge detection
+    if debug:
+        plotter = Plotter(base_path, image)
+
+        print("-------------------")
+        print("Gauge Detection")
+
+    # ------------------Gauge detection-------------------------
+
     box, all_boxes = detection_gauge_face(image, detection_model_path)
 
     if debug:
-        plot_bounding_box_img(image, all_boxes)
+        plotter.plot_bounding_box_img(all_boxes)
 
     # crop image to only gauge face
     cropped_img = crop_image(image, box)
@@ -126,38 +78,130 @@ def process_image(img_path,
                              interpolation=cv2.INTER_LINEAR)
 
     if debug:
-        plt.imshow(cropped_img)
-        plt.show()
+        plotter.set_image(cropped_img)
+        plotter.plot_image('cropped')
 
-    # ocr
-    ocr_readings = ocr(cropped_img, debug)
+        print("-------------------")
+        print("OCR")
+
+    # ------------------OCR-------------------------
+
+    ocr_readings, ocr_visualization = ocr(cropped_img, debug)
 
     if debug:
-        plot_ocr(cropped_img, ocr_readings)
+        plotter.plot_ocr_visualization(ocr_visualization)
+        plotter.plot_ocr(ocr_readings, title='full')
+
+    # get list of ocr readings that are the numbers
+    number_labels = []
+    for reading in ocr_readings:
+        if reading.is_number() and reading.confidence > OCR_THRESHOLD:
+            number_labels.append(reading)
+
+    if debug:
+        plotter.plot_ocr(number_labels, title='numbers')
+
+        print("-------------------")
+        print("Segmentation")
+
+    # ------------------Segmentation-------------------------
 
     needle_mask_x, needle_mask_y = segment_gauge_needle(
         cropped_img, segmentation_model)
     needle_line_coeffs = get_fitted_line(needle_mask_x, needle_mask_y)
+    needle_line_start, needle_line_end = get_start_end_line(needle_mask_x)
 
     if debug:
-        plot_segmented_line(cropped_img, needle_mask_x, needle_mask_y,
-                            needle_line_coeffs)
+        plotter.plot_segmented_line(needle_mask_x, needle_mask_y,
+                                    needle_line_coeffs)
 
-    # detect key points
+        print("-------------------")
+        print("Key Point Detection")
+
+    # ------------------Key Point Detection-------------------------
+
     key_point_inferencer = KeyPointInference(key_point_model)
-    key_point_list = key_point_inferencer.detect_key_points(cropped_img, debug)
+    heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
+    key_point_list = detect_key_points(heatmaps)
 
     if debug:
-        plot_key_points(cropped_img, key_point_list)
+        plotter.plot_heatmaps(heatmaps)
+        plotter.plot_key_points(key_point_list)
+
+        print("-------------------")
+        print("Ellipse Fitting")
+
+    # ------------------Ellipse Fitting-------------------------
 
     all_key_points = np.vstack(key_point_list)
-
     coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
-    x0, y0, ap, bp, phi = cart_to_pol(coeffs)
+    ellipse_params = cart_to_pol(coeffs)
 
     if debug:
-        plot_ellipse(cropped_img, all_key_points[:, 0], all_key_points[:, 1],
-                     (x0, y0, ap, bp, phi))
+        plotter.plot_ellipse(all_key_points, ellipse_params, 'key_points')
+
+        print("-------------------")
+        print("Projection")
+
+    # ------------------Project OCR Numbers to ellipse-------------------------
+
+    if len(number_labels) == 0:
+        print("Didn't find any numbers with ocr")
+        return
+
+    for number in number_labels:
+        theta = get_polar_angle(number.center, ellipse_params)
+        if theta < 0:
+            theta = 2 * np.pi + theta
+        number.set_theta(theta)
+
+    if debug:
+        plotter.plot_project_points_ellipse(number_labels, ellipse_params)
+
+    # ------------------Project Needle to ellipse-------------------------
+
+    point_needle_ellipse = get_line_ellipse_point(
+        needle_line_coeffs, (needle_line_start, needle_line_end),
+        ellipse_params)
+
+    if debug:
+        plotter.plot_ellipse(point_needle_ellipse.reshape(1, 2),
+                             ellipse_params, 'needle point')
+
+
+# ------------------Fit line to angles and get reading of needle-------------------------
+
+    needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
+    if needle_angle < 0:
+        needle_angle = 2 * np.pi + needle_angle
+
+    min_number = number_labels[0]
+    for number in number_labels:
+        if number.number < min_number.number:
+            min_number = number
+
+    if debug:
+        print(f"Minimum detected number is: {min_number.number}")
+    angle_converter = AngleConverter(min_number.theta)
+
+    angle_number_list = []
+    for number in number_labels:
+        angle_number_list.append(
+            (angle_converter.convert_angle(number.theta), number.number))
+
+    angle_number_arr = np.array(angle_number_list)
+    reading_line_coeff = np.polyfit(angle_number_arr[:, 0],
+                                    angle_number_arr[:, 1], 1)
+    reading_line = np.poly1d(reading_line_coeff)
+
+    needle_angle_conv = angle_converter.convert_angle(needle_angle)
+
+    reading = reading_line(needle_angle_conv)
+
+    if debug:
+        print(f"Final reading is: {reading}")
+        plotter.plot_final_reading_ellipse([], point_needle_ellipse,
+                                           round(reading, 1), ellipse_params)
 
 
 def main():
@@ -167,11 +211,13 @@ def main():
     detection_model_path = args.detection_model
     key_point_model = args.key_point_model
     segmentation_model = args.segmentation_model
+    base_path = args.base_path
 
     process_image(img_path,
                   detection_model_path,
                   key_point_model,
                   segmentation_model,
+                  base_path,
                   debug=args.debug)
 
 

@@ -1,7 +1,6 @@
 from ultralytics import YOLO
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 
 
 def segment_gauge_needle(image, model_path='best.pt'):
@@ -32,10 +31,5 @@ def get_fitted_line(x_coords, y_coords):
     return line_coeffs
 
 
-def plot_segmented_line(image, x_coords, y_coords, line_coeffs):
-    line_fn = np.poly1d(line_coeffs)
-    # Plot the line on top of the image
-    plt.imshow(image)
-    plt.scatter(x_coords, y_coords)
-    plt.plot(x_coords, line_fn(x_coords), color='red')
-    plt.show()
+def get_start_end_line(needle_mask_x):
+    return np.min(needle_mask_x), np.max(needle_mask_x)

@@ -1,7 +1,5 @@
 from mmocr.apis import MMOCRInferencer
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Polygon
 
 from ocr.ocr_reading import OCRReading
 
@@ -22,11 +20,7 @@ def ocr(img, visualize=True):
     try:
         results = ocr_model(img, return_vis=visualize)
 
-        if visualize:
-            visualization = results['visualization'][0]
-            plt.figure()
-            plt.imshow(visualization)
-            plt.show()
+        visualization = results['visualization'][0]
 
         polygons = results['predictions'][0]['det_polygons']
 
@@ -48,27 +42,7 @@ def ocr(img, visualize=True):
     except IndexError:
         print("nothing detected")
 
+    if visualize:
+        return readings, visualization
+
     return readings
-
-
-def plot_ocr(img, readings):
-    plt.figure()
-
-    threshold = 0.9
-    fig, ax = plt.subplots()
-
-    fig.set_size_inches(8, 6)
-
-    # Display the image using imshow
-    ax.imshow(img)
-
-    for reading in readings:
-        if reading.confidence > threshold:
-            polygon_patch = Polygon(reading.polygon,
-                                    linewidth=2,
-                                    edgecolor='r',
-                                    facecolor='none')
-            ax.add_patch(polygon_patch)
-            ax.scatter(reading.center[0], reading.center[1])
-
-    plt.show()
