@@ -7,7 +7,7 @@ from PIL import Image
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 
-from model import INPUT_SIZE
+from key_point_detection.model import INPUT_SIZE
 
 # Constants
 
@@ -35,33 +35,6 @@ class KeypointImageDataSet(Dataset):
 
         assert len(self.image_files) == len(self.annotation_files)
 
-    def my_segmentation_transforms(self, image, annotation):
-        random.seed(0)
-
-        resize = transforms.Resize(INPUT_SIZE,
-                                   transforms.InterpolationMode.BILINEAR)
-        image = resize(image)
-        annotation = resize(annotation)
-
-        toTensor = transforms.ToTensor()
-        # random crop image and annotation
-        if self.train:
-            if random.random() > 0.5:
-                new_size = int(1.2 * INPUT_SIZE[0])
-                resize = transforms.Resize(
-                    new_size, transforms.InterpolationMode.BILINEAR)
-                # increase size
-                image = resize(image)
-                annotation = resize(annotation)
-
-                top = random.randint(0, new_size - INPUT_SIZE[0])
-                left = random.randint(0, new_size - INPUT_SIZE[0])
-                image = TF.crop(image, top, left, INPUT_SIZE[0], INPUT_SIZE[1])
-                annotation = TF.crop(annotation, top, left, INPUT_SIZE[0],
-                                     INPUT_SIZE[1])
-
-        return toTensor(image), toTensor(annotation)
-
     def __len__(self):
         return len(self.image_files)
 
@@ -77,8 +50,8 @@ class KeypointImageDataSet(Dataset):
         annotations = np.load(annotation_path)
         annotations_image = annotations_np_to_img(annotations)
 
-        transformed_image, transformed_annotation = self.my_segmentation_transforms(
-            image, annotations_image)
+        transformed_image, transformed_annotation = custom_transforms(
+            self.train, image, annotations_image)
 
         # Convert to tensors
         if self.val:
@@ -87,6 +60,37 @@ class KeypointImageDataSet(Dataset):
 
     def get_name(self, index):
         return self.image_files[index][:-4]
+
+
+def custom_transforms(train, image, annotation=None):
+    random.seed(0)
+
+    resize = transforms.Resize(INPUT_SIZE,
+                               transforms.InterpolationMode.BILINEAR)
+    image = resize(image)
+    if annotation is not None:
+        annotation = resize(annotation)
+
+    toTensor = transforms.ToTensor()
+    # random crop image and annotation
+    if train:
+        if random.random() > 0.1:
+            new_size = int(1.2 * INPUT_SIZE[0])
+            resize = transforms.Resize(new_size,
+                                       transforms.InterpolationMode.BILINEAR)
+            # increase size
+            image = resize(image)
+            annotation = resize(annotation)
+
+            top = random.randint(0, new_size - INPUT_SIZE[0])
+            left = random.randint(0, new_size - INPUT_SIZE[0])
+            image = TF.crop(image, top, left, INPUT_SIZE[0], INPUT_SIZE[1])
+            annotation = TF.crop(annotation, top, left, INPUT_SIZE[0],
+                                 INPUT_SIZE[1])
+
+    if annotation is not None:
+        return toTensor(image), toTensor(annotation)
+    return toTensor(image)
 
 
 def annotations_np_to_img(annotations):

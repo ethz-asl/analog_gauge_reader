@@ -1,6 +1,7 @@
 import argparse
 import cv2
 import numpy as np
+from PIL import Image
 
 from plots import Plotter
 from gauge_detection.detection_inference import detection_gauge_face
@@ -16,10 +17,13 @@ OCR_THRESHOLD = 0.9
 
 def read_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input',
-                        type=str,
-                        required=True,
-                        help="Path to input image")
+    parser.add_argument(
+        '--input',
+        type=str,
+        required=True,
+        help=
+        "Path to input image. If a directory then it will pass all images of directory"
+    )
     parser.add_argument('--detection_model',
                         type=str,
                         required=True,
@@ -54,7 +58,8 @@ def crop_image(img, box):
 
 def process_image(img_path, detection_model_path, key_point_model,
                   segmentation_model, base_path, debug):
-    image = cv2.imread(img_path)
+    image = Image.open(img_path).convert("RGB")
+    image = np.asarray(image)
 
     if debug:
         plotter = Plotter(base_path, image)
@@ -75,7 +80,7 @@ def process_image(img_path, detection_model_path, key_point_model,
     # resize
     cropped_img = cv2.resize(cropped_img,
                              dsize=(224, 224),
-                             interpolation=cv2.INTER_LINEAR)
+                             interpolation=cv2.INTER_CUBIC)
 
     if debug:
         plotter.set_image(cropped_img)

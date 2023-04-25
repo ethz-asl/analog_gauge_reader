@@ -1,9 +1,8 @@
-import torch
-import cv2
-import numpy as np
+from PIL import Image
 
 from key_point_detection.key_point_extraction import full_key_point_extraction
-from key_point_detection.model import load_model, INPUT_SIZE
+from key_point_detection.model import load_model
+from key_point_detection.key_point_dataset import custom_transforms
 
 
 class KeyPointInference:
@@ -12,16 +11,14 @@ class KeyPointInference:
         self.model = load_model(model_path)
 
     def predict_heatmaps(self, image):
-        image = cv2.resize(image,
-                           dsize=(INPUT_SIZE[1], INPUT_SIZE[0]),
-                           interpolation=cv2.INTER_LINEAR)
-        image = image.astype(np.float32)
-        image_t = torch.from_numpy(image)
-        image_t = image_t.permute(2, 0, 1).unsqueeze(0)
+
+        img = Image.fromarray(image)
+        image_t = custom_transforms(train=False, image=img)
+        image_t = image_t.unsqueeze(0)
 
         heatmaps = self.model(image_t)
 
-        heatmaps = heatmaps.detach().numpy().squeeze(0)
+        heatmaps = heatmaps.detach().squeeze(0).numpy()
 
         return heatmaps
 
