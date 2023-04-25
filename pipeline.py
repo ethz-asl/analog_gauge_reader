@@ -1,10 +1,11 @@
 import argparse
 import os
+import time
 import cv2
 import numpy as np
 from PIL import Image
 
-from plots import Plotter
+from plots import RUN_PATH, Plotter
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
@@ -210,6 +211,13 @@ def process_image(img_path, detection_model_path, key_point_model,
                                            round(reading, 1), ellipse_params)
 
 
+def write_dict_to_file(filename, params):
+
+    with open(filename, 'w') as f:
+        for key, value in params.items():
+            f.write(f"{key}: {value}\n")
+
+
 def main():
     args = read_args()
 
@@ -218,6 +226,14 @@ def main():
     key_point_model = args.key_point_model
     segmentation_model = args.segmentation_model
     base_path = args.base_path
+
+    time_str = time.strftime("%Y%m%d%H")
+    base_path = os.path.join(base_path, RUN_PATH + '_' + time_str)
+    os.makedirs(base_path)
+
+    args_dict = vars(args)
+    file_path = os.path.join(base_path, "arguments.txt")
+    write_dict_to_file(file_path, args_dict)
 
     if os.path.isfile(input_path):
         process_image(input_path,
