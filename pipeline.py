@@ -1,4 +1,5 @@
 import argparse
+import os
 import cv2
 import numpy as np
 from PIL import Image
@@ -212,18 +213,34 @@ def process_image(img_path, detection_model_path, key_point_model,
 def main():
     args = read_args()
 
-    img_path = args.input
+    input_path = args.input
     detection_model_path = args.detection_model
     key_point_model = args.key_point_model
     segmentation_model = args.segmentation_model
     base_path = args.base_path
 
-    process_image(img_path,
-                  detection_model_path,
-                  key_point_model,
-                  segmentation_model,
-                  base_path,
-                  debug=args.debug)
+    if os.path.isfile(input_path):
+        process_image(input_path,
+                      detection_model_path,
+                      key_point_model,
+                      segmentation_model,
+                      base_path,
+                      debug=args.debug)
+    elif os.path.isdir(input_path):
+        for image in os.listdir(input_path):
+            img_path = os.path.join(input_path, image)
+            try:
+                process_image(img_path,
+                              detection_model_path,
+                              key_point_model,
+                              segmentation_model,
+                              base_path,
+                              debug=args.debug)
+
+            # pylint: disable=broad-except
+            # For now want to catch general exceptions and still continue with the other images.
+            except Exception as err:
+                print(f"Unexpected {err=}, {type(err)=}")
 
 
 if __name__ == "__main__":
