@@ -5,10 +5,8 @@ import time
 import matplotlib
 import matplotlib.pyplot as plt
 
-from torchvision import transforms
-
 from key_point_dataset import KeypointImageDataSet, \
-    IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH
+    IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH, custom_transforms
 from key_point_extraction import full_key_point_extraction
 from model import load_model
 
@@ -71,7 +69,9 @@ class KeyPointVal:
             plot_heatmaps(heatmaps, annotation, heatmap_file_path)
             key_point_file_path = os.path.join(
                 path, KEY_POINT_PREFIX + dataset.get_name(index) + '.jpg')
-            original_image_tensor = transforms.ToTensor()(original_image)
+            #resize original image as well
+            original_image_tensor = custom_transforms(train=False,
+                                                      image=original_image)
             plot_key_points(original_image_tensor, key_points, key_points_true,
                             key_point_file_path)
 

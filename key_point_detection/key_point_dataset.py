@@ -7,7 +7,7 @@ from PIL import Image
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 
-from key_point_detection.model import INPUT_SIZE
+from model import INPUT_SIZE
 
 # Constants
 
@@ -23,7 +23,13 @@ KEY_POINT_PREFIX = "K_"
 
 
 class KeypointImageDataSet(Dataset):
-    def __init__(self, img_dir, annotations_dir, train=False, val=False):
+    def __init__(self,
+                 img_dir,
+                 annotations_dir,
+                 train=False,
+                 val=False,
+                 debug=False):
+        random.seed(0)
         self.img_dir = img_dir
         self.annotations_dir = annotations_dir
 
@@ -32,6 +38,8 @@ class KeypointImageDataSet(Dataset):
 
         self.train = train
         self.val = val
+
+        self.debug = debug
 
         assert len(self.image_files) == len(self.annotation_files)
 
@@ -51,7 +59,7 @@ class KeypointImageDataSet(Dataset):
         annotations_image = annotations_np_to_img(annotations)
 
         transformed_image, transformed_annotation = custom_transforms(
-            self.train, image, annotations_image)
+            self.train, image, annotations_image, self.debug)
 
         # Convert to tensors
         if self.val:
@@ -62,8 +70,7 @@ class KeypointImageDataSet(Dataset):
         return self.image_files[index][:-4]
 
 
-def custom_transforms(train, image, annotation=None):
-    random.seed(0)
+def custom_transforms(train, image, annotation=None, debug=False):
 
     resize = transforms.Resize(INPUT_SIZE,
                                transforms.InterpolationMode.BILINEAR)
@@ -88,6 +95,25 @@ def custom_transforms(train, image, annotation=None):
             annotation = TF.crop(annotation, top, left, INPUT_SIZE[0],
                                  INPUT_SIZE[1])
 
+            if debug:
+                image.show()
+                annotation.show()
+
+            if random.random() > 0.7:
+                angle = random.randint(-30, 30)
+                image = TF.rotate(image, angle)
+                annotation = TF.rotate(annotation, angle)
+
+            if random.random() > 0.5:
+                brightness_factor = random.uniform(0.8, 1.2)
+                contrast_factor = random.uniform(0.8, 1.2)
+                image = TF.adjust_brightness(image, brightness_factor)
+                image = TF.adjust_contrast(image, contrast_factor)
+
+            if debug:
+                image.show()
+                annotation.show()
+
     if annotation is not None:
         return toTensor(image), toTensor(annotation)
     return toTensor(image)
@@ -97,3 +123,19 @@ def annotations_np_to_img(annotations):
     annotations = annotations.transpose(1, 2, 0)
     annotations = (annotations * 255).astype(np.uint8)
     return Image.fromarray(annotations, mode='RGB')
+
+
+# Debug code, to see augmentations
+if __name__ == "__main__":
+    image_directory = "/home/mreitsma/key_point_train/train/images"
+    annotations_directory = "/home/mreitsma/key_point_train/train/labels"
+
+    dataset = KeypointImageDataSet(image_directory,
+                                   annotations_directory,
+                                   train=True,
+                                   val=False,
+                                   debug=True)
+    # pylint: disable=pointless-statement
+    dataset[0]
+    dataset[0]
+    dataset[0]

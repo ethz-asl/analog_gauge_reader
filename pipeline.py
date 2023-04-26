@@ -15,6 +15,9 @@ from segmentation.segmenation_inference import get_start_end_line, segment_gauge
     get_fitted_line
 
 OCR_THRESHOLD = 0.9
+RESOLUTION = (
+    224, 224
+)  # make sure both dimensions are multiples of 14 for keypoint detection
 
 
 def read_args():
@@ -81,7 +84,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     # resize
     cropped_img = cv2.resize(cropped_img,
-                             dsize=(224, 224),
+                             dsize=RESOLUTION,
                              interpolation=cv2.INTER_CUBIC)
 
     if debug:
