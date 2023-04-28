@@ -5,7 +5,7 @@ ENCODER_MODEL_NAME = 'dinov2_vits14'
 
 N_HEATMAPS = 3
 N_CHANNELS = 50  # Number of intermediate channels for Nonlinearity
-INPUT_SIZE = (224, 224)
+INPUT_SIZE = (448, 448)
 
 DINO_CHANNELS = 384
 
@@ -40,16 +40,16 @@ class Decoder(nn.Module):
                  n_heatmaps):
         super().__init__()
         self.upsampling = nn.Sequential(
-            nn.Upsample(size=out_size, mode='bilinear', align_corners=False))
+            nn.Upsample(size=out_size, mode='bilinear', align_corners=False),
+            nn.Sigmoid())
         self.heatmaphead = nn.Sequential(
             nn.Conv2d(n_input_channels, n_inter_channels, (1, 1), bias=True),
             nn.ReLU(),
-            nn.Conv2d(n_inter_channels, n_heatmaps, (1, 1), bias=True),
-            nn.Sigmoid())
+            nn.Conv2d(n_inter_channels, n_heatmaps, (1, 1), bias=True))
 
     def forward(self, x):
-        upsample = self.upsampling(x)
-        heatmap = self.heatmaphead(upsample)
+        processed_features = self.heatmaphead(x)
+        heatmap = self.upsampling(processed_features)
         return heatmap
 
 

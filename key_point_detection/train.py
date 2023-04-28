@@ -60,7 +60,7 @@ class KeyPointTrain:
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                          mode='min',
                                                          factor=0.5,
-                                                         patience=10)
+                                                         patience=50)
 
         # Train the model
         for epoch in range(num_epochs):
