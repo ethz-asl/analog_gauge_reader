@@ -34,13 +34,6 @@ def extract_key_points(heatmap, threshold, bandwidth=5, visualize=False):
     # swap coordinates
     coords[:, [1, 0]] = coords[:, [0, 1]]
 
-    # remove key points too close to edge
-    edge = 30
-    coords = coords[coords[:, 0] >= edge]
-    coords = coords[coords[:, 1] >= edge]
-    coords = coords[coords[:, 0] <= 224 - edge]
-    coords = coords[coords[:, 1] <= 224 - edge]
-
     # if none detected with given threshold
     if coords.shape[0] == 0:
         if threshold <= 0.1:
