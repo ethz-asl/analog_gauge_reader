@@ -8,9 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-IMG_HEIGHT = 224
-IMG_WIDTH = 224
-
 IMAGE_DIR = 'images'
 LABEL_DIR = 'labels'
 
