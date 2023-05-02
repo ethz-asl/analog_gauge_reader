@@ -166,11 +166,11 @@ def main():
             img_path = os.path.join(img_directory, annotation['img_name'])
             image = cv2.imread(img_path)
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            heatmap = generate_heatmap(annotation['middle'],
-                                       torch.tensor(gray))
+            heatmap_show = generate_heatmap(annotation['middle'],
+                                            torch.tensor(gray))
             fig.add_subplot(rows, columns, plot_idx)
             plt.axis('off')
-            plt.imshow(heatmap)
+            plt.imshow(heatmap_show)
             plot_idx += 1
 
         filename = annotation['img_name'][:-4] + '.npy'
