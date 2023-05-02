@@ -108,7 +108,7 @@ def add_gaussian_to_heatmap(heatmap, x, y, sigma=5, visualize=False):
 
 # key_point_list is list of dicts with 'x' and 'y' coordinate, 1 for each keypoint
 # outputs heatmap
-def generate_heatmap(key_point_list, img=None, size=(224, 224)):
+def generate_heatmap(key_point_list, img=None, size=(448, 448)):
     # Initialize empty heatmap
     if img is not None:
         heatmap = img
@@ -121,17 +121,18 @@ def generate_heatmap(key_point_list, img=None, size=(224, 224)):
 
     for key_point in key_point_list:
         heatmap = add_gaussian_to_heatmap(heatmap,
-                                          key_point['x'] * 224 / 100,
-                                          key_point['y'] * 224 / 100,
+                                          key_point['x'] * size[0] / 100,
+                                          key_point['y'] * size[1] / 100,
                                           visualize=visualize)
 
     return heatmap.numpy()
 
 
-def heatmap_from_key_points(annotation):
-    heatmap_start = generate_heatmap(annotation['start'])
-    heatmap_middle = generate_heatmap(annotation['middle'])
-    heatmap_end = generate_heatmap(annotation['end'])
+def heatmap_from_key_points(annotation, size):
+    size = (size, size)
+    heatmap_start = generate_heatmap(annotation['start'], size=size)
+    heatmap_middle = generate_heatmap(annotation['middle'], size=size)
+    heatmap_end = generate_heatmap(annotation['end'], size=size)
 
     heatmap = np.stack((heatmap_start, heatmap_middle, heatmap_end), axis=0)
     return heatmap
@@ -163,8 +164,8 @@ def main():
 
     plot_idx = 1
     for i, annotation in enumerate(annotations):
-        heatmap = heatmap_from_key_points(annotation)
-        if i % 12 == 0:
+        heatmap = heatmap_from_key_points(annotation, args.size)
+        if i % 14 == 0:
             img_path = os.path.join(img_directory, annotation['img_name'])
             image = cv2.imread(img_path)
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -192,6 +193,10 @@ def read_args():
                         type=str,
                         required=True,
                         help="Directory where images are and labels go")
+    parser.add_argument('--size',
+                        type=int,
+                        required=True,
+                        help="Heatmap format is size x size")
 
     return parser.parse_args()
 
