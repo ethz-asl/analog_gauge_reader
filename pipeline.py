@@ -57,9 +57,32 @@ def crop_image(img, box):
     :param box: in the xyxy format
     :return: cropped image
     """
+    img = np.copy(img)
     cropped_img = img[box[1]:box[3],
                       box[0]:box[2], :]  # image has format [y, x, rgb]
-    return cropped_img
+
+    height = int(box[3] - box[1])
+    width = int(box[2] - box[0])
+
+    # want to preserve aspect ratio but make image square, so do padding
+    if height > width:
+        delta = height - width
+        left, right = delta // 2, delta - (delta // 2)
+        top = bottom = 0
+    else:
+        delta = width - height
+        top, bottom = delta // 2, delta - (delta // 2)
+        left = right = 0
+
+    pad_color = [0, 0, 0]
+    new_img = cv2.copyMakeBorder(cropped_img,
+                                 top,
+                                 bottom,
+                                 left,
+                                 right,
+                                 cv2.BORDER_CONSTANT,
+                                 value=pad_color)
+    return new_img
 
 
 def process_image(img_path, detection_model_path, key_point_model,
