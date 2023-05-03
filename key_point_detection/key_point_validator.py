@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from key_point_dataset import KeypointImageDataSet, \
     IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH, custom_transforms
 from key_point_extraction import full_key_point_extraction
-from model import load_model
+from model import load_model, N_HEATMAPS
 
 matplotlib.use('Agg')
 
@@ -91,17 +91,27 @@ class KeyPointVal:
 def plot_heatmaps(heatmaps1, heatmaps2, filename):
     plt.figure(figsize=(12, 8))
 
-    titles = ['Start', 'Middle', 'End']
+    if N_HEATMAPS == 1:
+        plt.subplot(2, 1, 1)
+        plt.imshow(heatmaps1.squeeze(0), cmap=plt.cm.viridis)
+        plt.title('Predicted Heatmap')
 
-    for i in range(3):
-        plt.subplot(2, 3, i + 1)
-        plt.imshow(heatmaps1[i], cmap=plt.cm.viridis)
-        plt.title(f'Predicted Heatmap {titles[i]}')
+        plt.subplot(2, 1, 2)
+        plt.imshow(heatmaps2.squeeze(0), cmap=plt.cm.viridis)
+        plt.title('True Heatmap')
 
-    for i in range(3):
-        plt.subplot(2, 3, i + 4)
-        plt.imshow(heatmaps2[i], cmap=plt.cm.viridis)
-        plt.title(f'True Heatmap {titles[i]}')
+    else:
+        titles = ['Start', 'Middle', 'End']
+
+        for i in range(3):
+            plt.subplot(2, 3, i + 1)
+            plt.imshow(heatmaps1[i], cmap=plt.cm.viridis)
+            plt.title(f'Predicted Heatmap {titles[i]}')
+
+        for i in range(3):
+            plt.subplot(2, 3, i + 4)
+            plt.imshow(heatmaps2[i], cmap=plt.cm.viridis)
+            plt.title(f'True Heatmap {titles[i]}')
 
     # Adjust the layout of the subplots
     plt.tight_layout()
@@ -112,31 +122,51 @@ def plot_heatmaps(heatmaps1, heatmaps2, filename):
 def plot_key_points(image, key_points_pred, key_points_true, filename):
     plt.figure(figsize=(12, 8))
 
-    titles = ['Start', 'Middle', 'End']
-
     image = image.permute(1, 2, 0)
 
-    for i in range(3):
-        key_points = key_points_pred[i]
-        plt.subplot(2, 3, i + 1)
+    if N_HEATMAPS == 1:
+        key_points = key_points_pred[0]
+        plt.subplot(2, 1, 1)
         plt.imshow(image)
         plt.scatter(key_points[:, 0],
                     key_points[:, 1],
                     s=50,
                     c='red',
                     marker='x')
-        plt.title(f'Predicted Key Point {titles[i]}')
+        plt.title('Predicted Key Point')
 
-    for i in range(3):
-        key_points = key_points_true[i]
-        plt.subplot(2, 3, i + 4)
+        key_points = key_points_true[0]
+        plt.subplot(2, 1, 2)
         plt.imshow(image)
         plt.scatter(key_points[:, 0],
                     key_points[:, 1],
                     s=50,
                     c='red',
                     marker='x')
-        plt.title(f'True Key Point {titles[i]}')
+        plt.title('True Key Point')
+    else:
+        titles = ['Start', 'Middle', 'End']
+        for i in range(3):
+            key_points = key_points_pred[i]
+            plt.subplot(2, 3, i + 1)
+            plt.imshow(image)
+            plt.scatter(key_points[:, 0],
+                        key_points[:, 1],
+                        s=50,
+                        c='red',
+                        marker='x')
+            plt.title(f'Predicted Key Point {titles[i]}')
+
+        for i in range(3):
+            key_points = key_points_true[i]
+            plt.subplot(2, 3, i + 4)
+            plt.imshow(image)
+            plt.scatter(key_points[:, 0],
+                        key_points[:, 1],
+                        s=50,
+                        c='red',
+                        marker='x')
+            plt.title(f'True Key Point {titles[i]}')
 
     # Adjust the layout of the subplots
     plt.tight_layout()

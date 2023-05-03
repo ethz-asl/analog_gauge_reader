@@ -2,12 +2,13 @@ import os
 import random
 import numpy as np
 
+import torch
 from torch.utils.data import Dataset
 from PIL import Image
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 
-from model import INPUT_SIZE
+from key_point_detection.model import INPUT_SIZE, N_HEATMAPS
 
 # Constants
 
@@ -60,6 +61,10 @@ class KeypointImageDataSet(Dataset):
 
         transformed_image, transformed_annotation = custom_transforms(
             self.train, image, annotations_image, self.debug)
+
+        if N_HEATMAPS == 1:
+            transformed_annotation = torch.sum(transformed_annotation,
+                                               axis=0).unsqueeze(0)
 
         # Convert to tensors
         if self.val:

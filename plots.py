@@ -70,16 +70,27 @@ class Plotter:
 
         titles = ['Start', 'Middle', 'End']
 
-        for i in range(3):
-            key_points = key_point_list[i]
-            plt.subplot(1, 3, i + 1)
+        if len(key_point_list) == 1:
+            key_points = key_point_list[0]
             plt.imshow(self.image)
             plt.scatter(key_points[:, 0],
                         key_points[:, 1],
                         s=50,
                         c='red',
                         marker='x')
-            plt.title(f'Predicted Key Point {titles[i]}')
+            plt.title('Predicted Key Point')
+
+        else:
+            for i in range(3):
+                key_points = key_point_list[i]
+                plt.subplot(1, 3, i + 1)
+                plt.imshow(self.image)
+                plt.scatter(key_points[:, 0],
+                            key_points[:, 1],
+                            s=50,
+                            c='red',
+                            marker='x')
+                plt.title(f'Predicted Key Point {titles[i]}')
 
         plt.tight_layout()
 
@@ -217,10 +228,15 @@ class Plotter:
 
         titles = ['Start', 'Middle', 'End']
 
-        for i in range(3):
-            plt.subplot(1, 3, i + 1)
-            plt.imshow(heatmaps[i], cmap=plt.cm.viridis)
-            plt.title(f'Predicted Heatmap {titles[i]}')
+        if heatmaps.shape[0] == 1:
+            plt.imshow(heatmaps[0], cmap=plt.cm.viridis)
+            plt.title('Predicted Heatmap')
+
+        else:
+            for i in range(3):
+                plt.subplot(1, 3, i + 1)
+                plt.imshow(heatmaps[i], cmap=plt.cm.viridis)
+                plt.title(f'Predicted Heatmap {titles[i]}')
 
         plt.tight_layout()
         path = os.path.join(self.run_path, "heatmaps_results.jpg")
