@@ -1,5 +1,6 @@
 import argparse
 import os
+import logging
 import time
 import cv2
 import numpy as np
@@ -16,7 +17,7 @@ from segmentation.segmenation_inference import get_start_end_line, segment_gauge
 
 OCR_THRESHOLD = 0.9
 RESOLUTION = (
-    224, 224
+    448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
 
 
@@ -63,16 +64,21 @@ def crop_image(img, box):
 
 def process_image(img_path, detection_model_path, key_point_model,
                   segmentation_model, base_path, debug):
+
+    logging.info("Start processing image at path %s", img_path)
+
     image = Image.open(img_path).convert("RGB")
     image = np.asarray(image)
 
     if debug:
         plotter = Plotter(base_path, image)
 
+    # ------------------Gauge detection-------------------------
+    if debug:
         print("-------------------")
         print("Gauge Detection")
 
-    # ------------------Gauge detection-------------------------
+    logging.info("Start Gauge Detection")
 
     box, all_boxes = detection_gauge_face(image, detection_model_path)
 
@@ -91,10 +97,50 @@ def process_image(img_path, detection_model_path, key_point_model,
         plotter.set_image(cropped_img)
         plotter.plot_image('cropped')
 
+    logging.info("Finish Gauge Detection")
+
+    # ------------------Key Point Detection-------------------------
+
+    if debug:
+        print("-------------------")
+        print("Key Point Detection")
+
+    logging.info("Start key point detection")
+
+    key_point_inferencer = KeyPointInference(key_point_model)
+    heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
+    key_point_list = detect_key_points(heatmaps)
+
+    if debug:
+        plotter.plot_heatmaps(heatmaps)
+        plotter.plot_key_points(key_point_list)
+
+    logging.info("Finish key point detection")
+
+    # ------------------Ellipse Fitting-------------------------
+
+    if debug:
+        print("-------------------")
+        print("Ellipse Fitting")
+
+    logging.info("Start ellipse fitting")
+
+    all_key_points = np.vstack(key_point_list)
+    coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
+    ellipse_params = cart_to_pol(coeffs)
+
+    if debug:
+        plotter.plot_ellipse(all_key_points, ellipse_params, 'key_points')
+
+    logging.info("Finish ellipse fitting")
+
+    # ------------------OCR-------------------------
+
+    if debug:
         print("-------------------")
         print("OCR")
 
-    # ------------------OCR-------------------------
+    logging.info("Start OCR")
 
     ocr_readings, ocr_visualization = ocr(cropped_img, debug)
 
@@ -111,10 +157,15 @@ def process_image(img_path, detection_model_path, key_point_model,
     if debug:
         plotter.plot_ocr(number_labels, title='numbers')
 
+    logging.info("Finish OCR")
+
+    # ------------------Segmentation-------------------------
+
+    if debug:
         print("-------------------")
         print("Segmentation")
 
-    # ------------------Segmentation-------------------------
+    logging.info("Start segmentation")
 
     needle_mask_x, needle_mask_y = segment_gauge_needle(
         cropped_img, segmentation_model)
@@ -125,38 +176,19 @@ def process_image(img_path, detection_model_path, key_point_model,
         plotter.plot_segmented_line(needle_mask_x, needle_mask_y,
                                     needle_line_coeffs)
 
-        print("-------------------")
-        print("Key Point Detection")
-
-    # ------------------Key Point Detection-------------------------
-
-    key_point_inferencer = KeyPointInference(key_point_model)
-    heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
-    key_point_list = detect_key_points(heatmaps)
-
-    if debug:
-        plotter.plot_heatmaps(heatmaps)
-        plotter.plot_key_points(key_point_list)
-
-        print("-------------------")
-        print("Ellipse Fitting")
-
-    # ------------------Ellipse Fitting-------------------------
-
-    all_key_points = np.vstack(key_point_list)
-    coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
-    ellipse_params = cart_to_pol(coeffs)
-
-    if debug:
-        plotter.plot_ellipse(all_key_points, ellipse_params, 'key_points')
-
-        print("-------------------")
-        print("Projection")
+    logging.info("Finish segmentation")
 
     # ------------------Project OCR Numbers to ellipse-------------------------
 
+    if debug:
+        print("-------------------")
+        print("Projection")
+
+    logging.info("Do projection on ellipse")
+
     if len(number_labels) == 0:
         print("Didn't find any numbers with ocr")
+        logging.error("Didn't find any numbers with ocr")
         return
 
     for number in number_labels:
@@ -230,13 +262,20 @@ def main():
     segmentation_model = args.segmentation_model
     base_path = args.base_path
 
-    time_str = time.strftime("%Y%m%d%H")
+    time_str = time.strftime("%Y%m%d%H%M")
     base_path = os.path.join(base_path, RUN_PATH + '_' + time_str)
     os.makedirs(base_path)
 
     args_dict = vars(args)
     file_path = os.path.join(base_path, "arguments.txt")
     write_dict_to_file(file_path, args_dict)
+
+    log_path = os.path.join(base_path, "run.log")
+
+    logging.basicConfig(filename=log_path,
+                        filemode='w',
+                        format='%(name)s - %(levelname)s - %(message)s',
+                        level=logging.INFO)
 
     if os.path.isfile(input_path):
         process_image(input_path,
@@ -259,7 +298,9 @@ def main():
             # pylint: disable=broad-except
             # For now want to catch general exceptions and still continue with the other images.
             except Exception as err:
-                print(f"Unexpected {err=}, {type(err)=}")
+                err_msg = f"Unexpected {err=}, {type(err)=}"
+                print(err_msg)
+                logging.error(err_msg)
 
 
 if __name__ == "__main__":
