@@ -2,6 +2,8 @@ import argparse
 import os
 import logging
 import time
+import json
+
 import cv2
 import numpy as np
 from PIL import Image
@@ -15,7 +17,7 @@ from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line
 
-OCR_THRESHOLD = 0.9
+OCR_THRESHOLD = 0.8
 RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
@@ -86,7 +88,9 @@ def crop_image(img, box):
 
 
 def process_image(img_path, detection_model_path, key_point_model,
-                  segmentation_model, base_path, debug):
+                  segmentation_model, run_path, debug):
+
+    result = []
 
     logging.info("Start processing image at path %s", img_path)
 
@@ -94,7 +98,7 @@ def process_image(img_path, detection_model_path, key_point_model,
     image = np.asarray(image)
 
     if debug:
-        plotter = Plotter(base_path, image)
+        plotter = Plotter(run_path, image)
 
     # ------------------Gauge detection-------------------------
     if debug:
@@ -263,17 +267,20 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     reading = reading_line(needle_angle_conv)
 
+    result.append({'reading': reading})
+
     if debug:
         print(f"Final reading is: {reading}")
         plotter.plot_final_reading_ellipse([], point_needle_ellipse,
                                            round(reading, 1), ellipse_params)
 
+    result_path = os.path.join(run_path, 'result.json')
+    write_json_file(result_path, result)
 
-def write_dict_to_file(filename, params):
 
-    with open(filename, 'w') as f:
-        for key, value in params.items():
-            f.write(f"{key}: {value}\n")
+def write_json_file(filename, dictionary):
+    with open(filename, "w") as outfile:
+        json.dump(dictionary, outfile)
 
 
 def main():
@@ -290,8 +297,8 @@ def main():
     os.makedirs(base_path)
 
     args_dict = vars(args)
-    file_path = os.path.join(base_path, "arguments.txt")
-    write_dict_to_file(file_path, args_dict)
+    file_path = os.path.join(base_path, "arguments.json")
+    write_json_file(file_path, args_dict)
 
     log_path = os.path.join(base_path, "run.log")
 
@@ -301,21 +308,24 @@ def main():
                         level=logging.INFO)
 
     if os.path.isfile(input_path):
+        image_name = os.path.basename(input_path)
+        run_path = os.path.join(base_path, image_name)
         process_image(input_path,
                       detection_model_path,
                       key_point_model,
                       segmentation_model,
-                      base_path,
+                      run_path,
                       debug=args.debug)
     elif os.path.isdir(input_path):
-        for image in os.listdir(input_path):
-            img_path = os.path.join(input_path, image)
+        for image_name in os.listdir(input_path):
+            img_path = os.path.join(input_path, image_name)
+            run_path = os.path.join(base_path, image_name)
             try:
                 process_image(img_path,
                               detection_model_path,
                               key_point_model,
                               segmentation_model,
-                              base_path,
+                              run_path,
                               debug=args.debug)
 
             # pylint: disable=broad-except

@@ -1,4 +1,3 @@
-import time
 import os
 from matplotlib.patches import Polygon
 import numpy as np
@@ -11,9 +10,8 @@ RUN_PATH = 'run'
 
 
 class Plotter:
-    def __init__(self, base_path, image):
-        time_str = time.strftime("%Y%m%d-%H%M%S")
-        self.run_path = os.path.join(base_path, RUN_PATH + '_' + time_str)
+    def __init__(self, run_path, image):
+        self.run_path = run_path
         os.mkdir(self.run_path)
         self.image = image
 
