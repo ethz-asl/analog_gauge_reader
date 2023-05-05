@@ -90,6 +90,15 @@ def custom_transforms(train, image, annotation=None, debug=False):
     # random crop image and annotation
     if train:
         if random.random() > 0.1:
+
+            if random.random() > 0:
+                angle = random.randint(-180, 180)
+                image = TF.rotate(image, angle)
+                annotation = TF.rotate(annotation, angle)
+
+                if debug:
+                    _plot_annotation_image(image, annotation)
+
             new_size = int(1.2 * INPUT_SIZE[0])
             resize = transforms.Resize(new_size,
                                        transforms.InterpolationMode.BILINEAR)
@@ -104,13 +113,7 @@ def custom_transforms(train, image, annotation=None, debug=False):
                                  INPUT_SIZE[1])
 
             if debug:
-                image.show()
-                annotation.show()
-
-            if random.random() > 0.7:
-                angle = random.randint(-30, 30)
-                image = TF.rotate(image, angle)
-                annotation = TF.rotate(annotation, angle)
+                _plot_annotation_image(image, annotation)
 
             if random.random() > 0.5:
                 brightness_factor = random.uniform(0.8, 1.2)
@@ -118,13 +121,23 @@ def custom_transforms(train, image, annotation=None, debug=False):
                 image = TF.adjust_brightness(image, brightness_factor)
                 image = TF.adjust_contrast(image, contrast_factor)
 
-            if debug:
-                image.show()
-                annotation.show()
+                if debug:
+                    _plot_annotation_image(image, annotation)
 
     if annotation is not None:
         return toTensor(image), toTensor(annotation)
     return toTensor(image)
+
+
+def _plot_annotation_image(image, annotation):
+    image_np = np.asarray(image)
+    annotation_np = np.asarray(annotation)
+    mask = np.max(annotation_np, axis=2) < 0.99
+    mask = np.stack([mask] * 3, axis=-1)
+    merge = np.where(mask, image_np, annotation_np)
+    merge_img = Image.fromarray(merge)
+    image.show()
+    merge_img.show()
 
 
 def annotations_np_to_img(annotations):
@@ -135,8 +148,8 @@ def annotations_np_to_img(annotations):
 
 # Debug code, to see augmentations
 if __name__ == "__main__":
-    image_directory = "/home/mreitsma/key_point_train/train/images"
-    annotations_directory = "/home/mreitsma/key_point_train/train/labels"
+    image_directory = "/home/mreitsma/key_point_train_448/train/images"
+    annotations_directory = "/home/mreitsma/key_point_train_448/train/labels"
 
     dataset = KeypointImageDataSet(image_directory,
                                    annotations_directory,
@@ -145,5 +158,5 @@ if __name__ == "__main__":
                                    debug=True)
     # pylint: disable=pointless-statement
     dataset[0]
-    dataset[0]
-    dataset[0]
+    dataset[1]
+    dataset[2]
