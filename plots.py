@@ -1,4 +1,3 @@
-import time
 import os
 from matplotlib.patches import Polygon
 import numpy as np
@@ -11,9 +10,8 @@ RUN_PATH = 'run'
 
 
 class Plotter:
-    def __init__(self, base_path, image):
-        time_str = time.strftime("%Y%m%d-%H%M%S")
-        self.run_path = os.path.join(base_path, RUN_PATH + '_' + time_str)
+    def __init__(self, run_path, image):
+        self.run_path = run_path
         os.mkdir(self.run_path)
         self.image = image
 
@@ -65,21 +63,43 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
+    def plot_test_point(self, point):
+        plt.figure(figsize=(12, 8))
+        plt.imshow(self.image)
+        plt.scatter(point[0], point[1], s=100, c='red', marker='x')
+        plt.title('Predicted Key Point')
+
+        plt.tight_layout()
+
+        path = os.path.join(self.run_path, "test_point_result.jpg")
+        plt.savefig(path)
+
     def plot_key_points(self, key_point_list):
         plt.figure(figsize=(12, 8))
 
         titles = ['Start', 'Middle', 'End']
 
-        for i in range(3):
-            key_points = key_point_list[i]
-            plt.subplot(1, 3, i + 1)
+        if len(key_point_list) == 1:
+            key_points = key_point_list[0]
             plt.imshow(self.image)
             plt.scatter(key_points[:, 0],
                         key_points[:, 1],
                         s=50,
                         c='red',
                         marker='x')
-            plt.title(f'Predicted Key Point {titles[i]}')
+            plt.title('Predicted Key Point')
+
+        else:
+            for i in range(3):
+                key_points = key_point_list[i]
+                plt.subplot(1, 3, i + 1)
+                plt.imshow(self.image)
+                plt.scatter(key_points[:, 0],
+                            key_points[:, 1],
+                            s=50,
+                            c='red',
+                            marker='x')
+                plt.title(f'Predicted Key Point {titles[i]}')
 
         plt.tight_layout()
 
@@ -217,10 +237,15 @@ class Plotter:
 
         titles = ['Start', 'Middle', 'End']
 
-        for i in range(3):
-            plt.subplot(1, 3, i + 1)
-            plt.imshow(heatmaps[i], cmap=plt.cm.viridis)
-            plt.title(f'Predicted Heatmap {titles[i]}')
+        if heatmaps.shape[0] == 1:
+            plt.imshow(heatmaps[0], cmap=plt.cm.viridis)
+            plt.title('Predicted Heatmap')
+
+        else:
+            for i in range(3):
+                plt.subplot(1, 3, i + 1)
+                plt.imshow(heatmaps[i], cmap=plt.cm.viridis)
+                plt.title(f'Predicted Heatmap {titles[i]}')
 
         plt.tight_layout()
         path = os.path.join(self.run_path, "heatmaps_results.jpg")

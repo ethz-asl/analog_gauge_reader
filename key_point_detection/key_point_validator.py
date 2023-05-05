@@ -2,15 +2,15 @@ import argparse
 import os
 import time
 
+import matplotlib
 import matplotlib.pyplot as plt
 
-from torchvision import transforms
-
 from key_point_dataset import KeypointImageDataSet, \
-    IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH
-from key_point_detection.key_point_extraction import full_key_point_extraction
-from key_point_detection.model import load_model
-from key_point_detection.model import INPUT_SIZE
+    IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH, custom_transforms
+from key_point_extraction import full_key_point_extraction
+from model import load_model, N_HEATMAPS
+
+matplotlib.use('Agg')
 
 HEATMAP_PREFIX = "H_"
 KEY_POINT_PREFIX = "K_"
@@ -20,7 +20,11 @@ TEST_PATH = 'test'
 
 
 class KeyPointVal:
-    def __init__(self, model, base_path):
+    def __init__(self, model, base_path, time_str=None):
+
+        self.time_str = time_str if time_str is not None else time.strftime(
+            "%Y%m%d-%H%M%S")
+
         train_image_folder = os.path.join(base_path, TRAIN_PATH, IMG_PATH)
         train_annotation_folder = os.path.join(base_path, TRAIN_PATH,
                                                LABEL_PATH)
@@ -30,26 +34,23 @@ class KeyPointVal:
 
         self.base_path = base_path
         self.model = model
-        self.transform = transforms.Compose([
-            transforms.Resize(INPUT_SIZE),
-            transforms.ToTensor(),
-            # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-        ])
 
         self.train_dataset = KeypointImageDataSet(
             img_dir=train_image_folder,
             annotations_dir=train_annotation_folder,
-            transform=self.transform)
+            train=False,
+            val=True)
 
         self.val_dataset = KeypointImageDataSet(
             img_dir=val_image_folder,
             annotations_dir=val_annotation_folder,
-            transform=self.transform)
+            train=False,
+            val=True)
 
     def validate_set(self, path, dataset):
         for index, data in enumerate(dataset):
             print(index)
-            image, annotation = data
+            image, original_image, annotation = data
 
             heatmaps = self.model(image.unsqueeze(0))
             print("inference done")
@@ -65,97 +66,112 @@ class KeyPointVal:
             # plot the heatmaps in the run folder
             heatmap_file_path = os.path.join(
                 path, HEATMAP_PREFIX + dataset.get_name(index) + '.jpg')
-            plot_heatmaps(heatmaps, annotation, heatmap_file_path, plot=False)
+            plot_heatmaps(heatmaps, annotation, heatmap_file_path)
             key_point_file_path = os.path.join(
                 path, KEY_POINT_PREFIX + dataset.get_name(index) + '.jpg')
-            plot_key_points(image,
-                            key_points,
-                            key_points_true,
-                            key_point_file_path,
-                            plot=False)
+            #resize original image as well
+            original_image_tensor = custom_transforms(train=False,
+                                                      image=original_image)
+            plot_key_points(original_image_tensor, key_points, key_points_true,
+                            key_point_file_path)
 
     def validate(self):
-        time_str = time.strftime("%Y%m%d-%H%M%S")
-        run_path = os.path.join(self.base_path, RUN_PATH + '_' + time_str)
+        run_path = os.path.join(self.base_path, RUN_PATH + '_' + self.time_str)
         train_path = os.path.join(run_path, TRAIN_PATH)
         val_path = os.path.join(run_path, VAL_PATH)
 
-        os.mkdir(run_path)
-        os.mkdir(train_path)
-        os.mkdir(val_path)
+        os.makedirs(run_path, exist_ok=True)
+        os.makedirs(train_path, exist_ok=True)
+        os.makedirs(val_path, exist_ok=True)
 
         self.validate_set(train_path, self.train_dataset)
         self.validate_set(val_path, self.val_dataset)
 
 
-def plot_heatmaps(heatmaps1, heatmaps2, filename=None, plot=False):
+def plot_heatmaps(heatmaps1, heatmaps2, filename):
     plt.figure(figsize=(12, 8))
 
-    titles = ['Start', 'Middle', 'End']
+    if N_HEATMAPS == 1:
+        plt.subplot(2, 1, 1)
+        plt.imshow(heatmaps1.squeeze(0), cmap=plt.cm.viridis)
+        plt.title('Predicted Heatmap')
 
-    for i in range(3):
-        plt.subplot(2, 3, i + 1)
-        plt.imshow(heatmaps1[i], cmap=plt.cm.viridis)
-        plt.title(f'Predicted Heatmap {titles[i]}')
+        plt.subplot(2, 1, 2)
+        plt.imshow(heatmaps2.squeeze(0), cmap=plt.cm.viridis)
+        plt.title('True Heatmap')
 
-    for i in range(3):
-        plt.subplot(2, 3, i + 4)
-        plt.imshow(heatmaps2[i], cmap=plt.cm.viridis)
-        plt.title(f'True Heatmap {titles[i]}')
+    else:
+        titles = ['Start', 'Middle', 'End']
+
+        for i in range(3):
+            plt.subplot(2, 3, i + 1)
+            plt.imshow(heatmaps1[i], cmap=plt.cm.viridis)
+            plt.title(f'Predicted Heatmap {titles[i]}')
+
+        for i in range(3):
+            plt.subplot(2, 3, i + 4)
+            plt.imshow(heatmaps2[i], cmap=plt.cm.viridis)
+            plt.title(f'True Heatmap {titles[i]}')
 
     # Adjust the layout of the subplots
     plt.tight_layout()
 
-    if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
-
-    # Show the plots
-    if plot:
-        plt.show()
+    plt.savefig(filename, bbox_inches='tight')
 
 
-def plot_key_points(image,
-                    key_points_pred,
-                    key_points_true,
-                    filename=None,
-                    plot=False):
+def plot_key_points(image, key_points_pred, key_points_true, filename):
     plt.figure(figsize=(12, 8))
-
-    titles = ['Start', 'Middle', 'End']
 
     image = image.permute(1, 2, 0)
 
-    for i in range(3):
-        key_points = key_points_pred[i]
-        plt.subplot(2, 3, i + 1)
+    if N_HEATMAPS == 1:
+        key_points = key_points_pred[0]
+        plt.subplot(2, 1, 1)
         plt.imshow(image)
         plt.scatter(key_points[:, 0],
                     key_points[:, 1],
                     s=50,
                     c='red',
                     marker='x')
-        plt.title(f'Predicted Key Point {titles[i]}')
+        plt.title('Predicted Key Point')
 
-    for i in range(3):
-        key_points = key_points_true[i]
-        plt.subplot(2, 3, i + 4)
+        key_points = key_points_true[0]
+        plt.subplot(2, 1, 2)
         plt.imshow(image)
         plt.scatter(key_points[:, 0],
                     key_points[:, 1],
                     s=50,
                     c='red',
                     marker='x')
-        plt.title(f'True Key Point {titles[i]}')
+        plt.title('True Key Point')
+    else:
+        titles = ['Start', 'Middle', 'End']
+        for i in range(3):
+            key_points = key_points_pred[i]
+            plt.subplot(2, 3, i + 1)
+            plt.imshow(image)
+            plt.scatter(key_points[:, 0],
+                        key_points[:, 1],
+                        s=50,
+                        c='red',
+                        marker='x')
+            plt.title(f'Predicted Key Point {titles[i]}')
+
+        for i in range(3):
+            key_points = key_points_true[i]
+            plt.subplot(2, 3, i + 4)
+            plt.imshow(image)
+            plt.scatter(key_points[:, 0],
+                        key_points[:, 1],
+                        s=50,
+                        c='red',
+                        marker='x')
+            plt.title(f'True Key Point {titles[i]}')
 
     # Adjust the layout of the subplots
     plt.tight_layout()
 
-    if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
-
-    # Show the plots
-    if plot:
-        plt.show()
+    plt.savefig(filename, bbox_inches='tight')
 
 
 def main():

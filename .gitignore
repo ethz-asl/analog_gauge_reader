@@ -135,5 +135,6 @@ dmypy.json
 #Custom ignores
 yolov8?.pt
 yolov8?-seg.pt
+.vscode/
 **/runs
 **/data

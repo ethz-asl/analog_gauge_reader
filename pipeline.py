@@ -1,8 +1,14 @@
 import argparse
+import os
+import logging
+import time
+import json
+
 import cv2
 import numpy as np
+from PIL import Image
 
-from plots import Plotter
+from plots import RUN_PATH, Plotter
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
@@ -11,15 +17,21 @@ from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line
 
-OCR_THRESHOLD = 0.9
+OCR_THRESHOLD = 0.8
+RESOLUTION = (
+    448, 448
+)  # make sure both dimensions are multiples of 14 for keypoint detection
 
 
 def read_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input',
-                        type=str,
-                        required=True,
-                        help="Path to input image")
+    parser.add_argument(
+        '--input',
+        type=str,
+        required=True,
+        help=
+        "Path to input image. If a directory then it will pass all images of directory"
+    )
     parser.add_argument('--detection_model',
                         type=str,
                         required=True,
@@ -47,22 +59,53 @@ def crop_image(img, box):
     :param box: in the xyxy format
     :return: cropped image
     """
+    img = np.copy(img)
     cropped_img = img[box[1]:box[3],
                       box[0]:box[2], :]  # image has format [y, x, rgb]
-    return cropped_img
+
+    height = int(box[3] - box[1])
+    width = int(box[2] - box[0])
+
+    # want to preserve aspect ratio but make image square, so do padding
+    if height > width:
+        delta = height - width
+        left, right = delta // 2, delta - (delta // 2)
+        top = bottom = 0
+    else:
+        delta = width - height
+        top, bottom = delta // 2, delta - (delta // 2)
+        left = right = 0
+
+    pad_color = [0, 0, 0]
+    new_img = cv2.copyMakeBorder(cropped_img,
+                                 top,
+                                 bottom,
+                                 left,
+                                 right,
+                                 cv2.BORDER_CONSTANT,
+                                 value=pad_color)
+    return new_img
 
 
 def process_image(img_path, detection_model_path, key_point_model,
-                  segmentation_model, base_path, debug):
-    image = cv2.imread(img_path)
+                  segmentation_model, run_path, debug):
+
+    result = []
+
+    logging.info("Start processing image at path %s", img_path)
+
+    image = Image.open(img_path).convert("RGB")
+    image = np.asarray(image)
 
     if debug:
-        plotter = Plotter(base_path, image)
+        plotter = Plotter(run_path, image)
 
+    # ------------------Gauge detection-------------------------
+    if debug:
         print("-------------------")
         print("Gauge Detection")
 
-    # ------------------Gauge detection-------------------------
+    logging.info("Start Gauge Detection")
 
     box, all_boxes = detection_gauge_face(image, detection_model_path)
 
@@ -74,17 +117,57 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     # resize
     cropped_img = cv2.resize(cropped_img,
-                             dsize=(224, 224),
-                             interpolation=cv2.INTER_LINEAR)
+                             dsize=RESOLUTION,
+                             interpolation=cv2.INTER_CUBIC)
 
     if debug:
         plotter.set_image(cropped_img)
         plotter.plot_image('cropped')
 
+    logging.info("Finish Gauge Detection")
+
+    # ------------------Key Point Detection-------------------------
+
+    if debug:
+        print("-------------------")
+        print("Key Point Detection")
+
+    logging.info("Start key point detection")
+
+    key_point_inferencer = KeyPointInference(key_point_model)
+    heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
+    key_point_list = detect_key_points(heatmaps)
+
+    if debug:
+        plotter.plot_heatmaps(heatmaps)
+        plotter.plot_key_points(key_point_list)
+
+    logging.info("Finish key point detection")
+
+    # ------------------Ellipse Fitting-------------------------
+
+    if debug:
+        print("-------------------")
+        print("Ellipse Fitting")
+
+    logging.info("Start ellipse fitting")
+
+    all_key_points = np.vstack(key_point_list)
+    coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
+    ellipse_params = cart_to_pol(coeffs)
+
+    if debug:
+        plotter.plot_ellipse(all_key_points, ellipse_params, 'key_points')
+
+    logging.info("Finish ellipse fitting")
+
+    # ------------------OCR-------------------------
+
+    if debug:
         print("-------------------")
         print("OCR")
 
-    # ------------------OCR-------------------------
+    logging.info("Start OCR")
 
     ocr_readings, ocr_visualization = ocr(cropped_img, debug)
 
@@ -101,10 +184,15 @@ def process_image(img_path, detection_model_path, key_point_model,
     if debug:
         plotter.plot_ocr(number_labels, title='numbers')
 
+    logging.info("Finish OCR")
+
+    # ------------------Segmentation-------------------------
+
+    if debug:
         print("-------------------")
         print("Segmentation")
 
-    # ------------------Segmentation-------------------------
+    logging.info("Start segmentation")
 
     needle_mask_x, needle_mask_y = segment_gauge_needle(
         cropped_img, segmentation_model)
@@ -115,44 +203,25 @@ def process_image(img_path, detection_model_path, key_point_model,
         plotter.plot_segmented_line(needle_mask_x, needle_mask_y,
                                     needle_line_coeffs)
 
-        print("-------------------")
-        print("Key Point Detection")
-
-    # ------------------Key Point Detection-------------------------
-
-    key_point_inferencer = KeyPointInference(key_point_model)
-    heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
-    key_point_list = detect_key_points(heatmaps)
-
-    if debug:
-        plotter.plot_heatmaps(heatmaps)
-        plotter.plot_key_points(key_point_list)
-
-        print("-------------------")
-        print("Ellipse Fitting")
-
-    # ------------------Ellipse Fitting-------------------------
-
-    all_key_points = np.vstack(key_point_list)
-    coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
-    ellipse_params = cart_to_pol(coeffs)
-
-    if debug:
-        plotter.plot_ellipse(all_key_points, ellipse_params, 'key_points')
-
-        print("-------------------")
-        print("Projection")
+    logging.info("Finish segmentation")
 
     # ------------------Project OCR Numbers to ellipse-------------------------
 
+    if debug:
+        print("-------------------")
+        print("Projection")
+
+    logging.info("Do projection on ellipse")
+
     if len(number_labels) == 0:
         print("Didn't find any numbers with ocr")
+        logging.error("Didn't find any numbers with ocr")
         return
 
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)
         if theta < 0:
-            theta = 2 * np.pi + theta
+            theta = 2 * np.pi + theta  # Have all angles be in range [0, 2*pi)
         number.set_theta(theta)
 
     if debug:
@@ -171,18 +240,15 @@ def process_image(img_path, detection_model_path, key_point_model,
 
 # ------------------Fit line to angles and get reading of needle-------------------------
 
+# Find angle of needle ellipse point
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
     if needle_angle < 0:
-        needle_angle = 2 * np.pi + needle_angle
+        needle_angle = 2 * np.pi + needle_angle  # Have all angles be in range [0, 2*pi)
 
-    min_number = number_labels[0]
-    for number in number_labels:
-        if number.number < min_number.number:
-            min_number = number
-
-    if debug:
-        print(f"Minimum detected number is: {min_number.number}")
-    angle_converter = AngleConverter(min_number.theta)
+    # Find bottom point to set there the zero for wrap around
+    bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
+    theta_zero = get_polar_angle(bottom_middle, ellipse_params)
+    angle_converter = AngleConverter(theta_zero)
 
     angle_number_list = []
     for number in number_labels:
@@ -198,27 +264,73 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     reading = reading_line(needle_angle_conv)
 
+    result.append({'reading': reading})
+
     if debug:
         print(f"Final reading is: {reading}")
         plotter.plot_final_reading_ellipse([], point_needle_ellipse,
                                            round(reading, 1), ellipse_params)
 
+    result_path = os.path.join(run_path, 'result.json')
+    write_json_file(result_path, result)
+
+
+def write_json_file(filename, dictionary):
+    with open(filename, "w") as outfile:
+        json.dump(dictionary, outfile)
+
 
 def main():
     args = read_args()
 
-    img_path = args.input
+    input_path = args.input
     detection_model_path = args.detection_model
     key_point_model = args.key_point_model
     segmentation_model = args.segmentation_model
     base_path = args.base_path
 
-    process_image(img_path,
-                  detection_model_path,
-                  key_point_model,
-                  segmentation_model,
-                  base_path,
-                  debug=args.debug)
+    time_str = time.strftime("%Y%m%d%H%M")
+    base_path = os.path.join(base_path, RUN_PATH + '_' + time_str)
+    os.makedirs(base_path)
+
+    args_dict = vars(args)
+    file_path = os.path.join(base_path, "arguments.json")
+    write_json_file(file_path, args_dict)
+
+    log_path = os.path.join(base_path, "run.log")
+
+    logging.basicConfig(filename=log_path,
+                        filemode='w',
+                        format='%(name)s - %(levelname)s - %(message)s',
+                        level=logging.INFO)
+
+    if os.path.isfile(input_path):
+        image_name = os.path.basename(input_path)
+        run_path = os.path.join(base_path, image_name)
+        process_image(input_path,
+                      detection_model_path,
+                      key_point_model,
+                      segmentation_model,
+                      run_path,
+                      debug=args.debug)
+    elif os.path.isdir(input_path):
+        for image_name in os.listdir(input_path):
+            img_path = os.path.join(input_path, image_name)
+            run_path = os.path.join(base_path, image_name)
+            try:
+                process_image(img_path,
+                              detection_model_path,
+                              key_point_model,
+                              segmentation_model,
+                              run_path,
+                              debug=args.debug)
+
+            # pylint: disable=broad-except
+            # For now want to catch general exceptions and still continue with the other images.
+            except Exception as err:
+                err_msg = f"Unexpected {err=}, {type(err)=}"
+                print(err_msg)
+                logging.error(err_msg)
 
 
 if __name__ == "__main__":

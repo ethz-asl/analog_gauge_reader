@@ -6,23 +6,29 @@ from scipy.spatial.distance import cdist
 
 def full_key_point_extraction(heatmaps,
                               threshold=0.4,
-                              bandwidth=5,
+                              bandwidth=20,
                               visualize=False):
     key_point_list = []
     for i in range(heatmaps.shape[0]):
+        # middle = i == 1
+        # if middle:
+        #     threshold = 0.6
+        # else:
+        #     threshold = 0.8
         cluster_centers = extract_key_points(heatmaps[i], threshold, bandwidth,
                                              visualize)
         key_point_list.append(cluster_centers)
     return key_point_list
 
 
-def extract_key_points(heatmap, threshold, bandwidth=5, visualize=False):
+def extract_key_points(heatmap, threshold, bandwidth, visualize=False):
     """
     threshold is minimum confidence for points to be considered in clustering.
     increasing the threshold increases performance
     bandwidth is bandwidth parameter of Mean shift.
     return extracted cluster centers
     """
+
     # Get pixel coordinates of pixels with value greater than 0.5
     coords = np.argwhere(heatmap > threshold)
     # swap coordinates
@@ -37,7 +43,7 @@ def extract_key_points(heatmap, threshold, bandwidth=5, visualize=False):
         new_threshold = threshold / 2
         print(f"No point with confidence at least {threshold} detected. "
               f"Trying threshold {new_threshold}")
-        return extract_key_points(heatmap, threshold=new_threshold)
+        return extract_key_points(heatmap, new_threshold, bandwidth)
 
     # Perform mean shift clustering
     ms = MeanShift(bandwidth=bandwidth, n_jobs=-1)

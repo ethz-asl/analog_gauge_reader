@@ -1,37 +1,38 @@
 from torch import nn
 import torch
-import timm
 
-ENCODER_MODEL_NAME = 'convnext_base'
-NUM_LAYERS = 2
+ENCODER_MODEL_NAME = 'dinov2_vits14'
 
 N_HEATMAPS = 3
 N_CHANNELS = 50  # Number of intermediate channels for Nonlinearity
-INPUT_SIZE = (224, 224)
+INPUT_SIZE = (448, 448)
+
+DINO_CHANNELS = 384
 
 
 class Encoder(nn.Module):
-    def __init__(self, pretrained=False):
+    def __init__(self, pretrained=True):
         super().__init__()
-        encoder_model = timm.create_model(ENCODER_MODEL_NAME,
-                                          pretrained=pretrained)
+        self.model = torch.hub.load('facebookresearch/dinov2',
+                                    ENCODER_MODEL_NAME,
+                                    pretrained=pretrained)
+        self.model.eval()
+        for param in self.model.parameters():
+            param.requires_grad = False
 
-        # only take first num_layers of encoder, determines depth of encoder
-        layer_list_encoder = [
-            list(encoder_model.children())[0],
-            *list(list(encoder_model.children())[1].children())[:NUM_LAYERS]
-        ]
-
-        self.feature_extractor = nn.Sequential(*layer_list_encoder)
-
-    def get_feature_shape(self):
-        input_shape = (1, 3, INPUT_SIZE[0], INPUT_SIZE[1])
-        x = torch.randn(input_shape)
-        features = self.feature_extractor(x)
-        return features.shape
+    # pylint: disable=no-self-use
+    def get_number_output_channels(self):
+        return DINO_CHANNELS
 
     def forward(self, x):
-        return self.feature_extractor(x)
+        # pylint: disable=unused-variable
+        B, C, H, W = x.shape
+        with torch.no_grad():
+            x = self.model.forward_features(x)['x_norm_patchtokens']
+        width_out = W // 14
+        height_out = H // 14
+        return x.reshape(B, height_out, width_out,
+                         DINO_CHANNELS).detach().permute(0, 3, 1, 2)
 
 
 class Decoder(nn.Module):
@@ -39,16 +40,16 @@ class Decoder(nn.Module):
                  n_heatmaps):
         super().__init__()
         self.upsampling = nn.Sequential(
-            nn.Upsample(size=out_size, mode='bilinear', align_corners=False))
+            nn.Upsample(size=out_size, mode='bilinear', align_corners=False),
+            nn.Sigmoid())
         self.heatmaphead = nn.Sequential(
             nn.Conv2d(n_input_channels, n_inter_channels, (1, 1), bias=True),
             nn.ReLU(),
-            nn.Conv2d(n_inter_channels, n_heatmaps, (1, 1), bias=True),
-            nn.Sigmoid())
+            nn.Conv2d(n_inter_channels, n_heatmaps, (1, 1), bias=True))
 
     def forward(self, x):
-        upsample = self.upsampling(x)
-        heatmap = self.heatmaphead(upsample)
+        processed_features = self.heatmaphead(x)
+        heatmap = self.upsampling(processed_features)
         return heatmap
 
 
@@ -66,7 +67,7 @@ class EncoderDecoder(nn.Module):
 
 def load_model(model_path):
     encoder = Encoder(pretrained=False)
-    n_feature_channels = encoder.get_feature_shape()[1]
+    n_feature_channels = encoder.get_number_output_channels()
     decoder = Decoder(n_feature_channels, N_CHANNELS, INPUT_SIZE, N_HEATMAPS)
 
     model = EncoderDecoder(encoder, decoder)
