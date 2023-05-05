@@ -8,7 +8,7 @@ from PIL import Image
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 
-from key_point_detection.model import INPUT_SIZE, N_HEATMAPS
+from model import INPUT_SIZE, N_HEATMAPS
 
 # Constants
 
@@ -63,8 +63,11 @@ class KeypointImageDataSet(Dataset):
             self.train, image, annotations_image, self.debug)
 
         if N_HEATMAPS == 1:
-            transformed_annotation = torch.sum(transformed_annotation,
-                                               axis=0).unsqueeze(0)
+            transformed_annotation = torch.max(transformed_annotation,
+                                               axis=0).values.unsqueeze(0)
+        elif N_HEATMAPS == 3:
+            transformed_annotation[1, :, :] = torch.max(transformed_annotation,
+                                                        axis=0).values
 
         # Convert to tensors
         if self.val:

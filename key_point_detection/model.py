@@ -3,7 +3,7 @@ import torch
 
 ENCODER_MODEL_NAME = 'dinov2_vits14'
 
-N_HEATMAPS = 1
+N_HEATMAPS = 3
 N_CHANNELS = 50  # Number of intermediate channels for Nonlinearity
 INPUT_SIZE = (448, 448)
 

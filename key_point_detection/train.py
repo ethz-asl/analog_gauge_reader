@@ -38,6 +38,8 @@ class KeyPointTrain:
 
         self.decoder = self._create_decoder()
 
+        self.criterion = nn.BCELoss()
+
         self.full_model = EncoderDecoder(self.feature_extractor, self.decoder)
 
     def _create_decoder(self):
@@ -55,7 +57,6 @@ class KeyPointTrain:
 
         self.full_model.to(device)
 
-        criterion = nn.MSELoss()
         optimizer = optim.Adam(self.full_model.parameters(), lr=learning_rate)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                          mode='min',
@@ -69,7 +70,7 @@ class KeyPointTrain:
                 # Forward pass
                 inputs, annotations = inputs.to(device), annotations.to(device)
                 outputs = self.full_model(inputs)
-                loss = criterion(outputs, annotations)
+                loss = self.criterion(outputs, annotations)
 
                 # Backward pass and optimization
                 optimizer.zero_grad()
