@@ -221,7 +221,7 @@ def process_image(img_path, detection_model_path, key_point_model,
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)
         if theta < 0:
-            theta = 2 * np.pi + theta
+            theta = 2 * np.pi + theta  # Have all angles be in range [0, 2*pi)
         number.set_theta(theta)
 
     if debug:
@@ -240,18 +240,15 @@ def process_image(img_path, detection_model_path, key_point_model,
 
 # ------------------Fit line to angles and get reading of needle-------------------------
 
+# Find angle of needle ellipse point
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
     if needle_angle < 0:
-        needle_angle = 2 * np.pi + needle_angle
+        needle_angle = 2 * np.pi + needle_angle  # Have all angles be in range [0, 2*pi)
 
-    min_number = number_labels[0]
-    for number in number_labels:
-        if number.number < min_number.number:
-            min_number = number
-
-    if debug:
-        print(f"Minimum detected number is: {min_number.number}")
-    angle_converter = AngleConverter(min_number.theta)
+    # Find bottom point to set there the zero for wrap around
+    bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
+    theta_zero = get_polar_angle(bottom_middle, ellipse_params)
+    angle_converter = AngleConverter(theta_zero)
 
     angle_number_list = []
     for number in number_labels:
