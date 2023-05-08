@@ -13,6 +13,7 @@ def get_files_from_folder(folder):
 def main(path):
     folder = os.path.join(path, "images")
     image_names = get_files_from_folder(folder)
+
     names_json = json.dumps(image_names, indent=4)
     outfile_path = os.path.join(path, "true_readings.json")
     with open(outfile_path, "w") as outfile:
