@@ -12,15 +12,18 @@ from plots import RUN_PATH, Plotter
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
-from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, get_polar_angle
+from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
+    get_point_from_angle, get_polar_angle, get_theta_middle
 from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line
+from common import RESULT_FILE_NAME, PREDICTION_KEY
 
 OCR_THRESHOLD = 0.8
 RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
+WRAP_AROUND_FIX = True
 
 
 def read_args():
@@ -138,6 +141,10 @@ def process_image(img_path, detection_model_path, key_point_model,
     heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
     key_point_list = detect_key_points(heatmaps)
 
+    key_points = key_point_list[1]
+    start_point = key_point_list[0]
+    end_point = key_point_list[2]
+
     if debug:
         plotter.plot_heatmaps(heatmaps)
         plotter.plot_key_points(key_point_list)
@@ -152,12 +159,11 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Start ellipse fitting")
 
-    all_key_points = np.vstack(key_point_list)
-    coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
+    coeffs = fit_ellipse(key_points[:, 0], key_points[:, 1])
     ellipse_params = cart_to_pol(coeffs)
 
     if debug:
-        plotter.plot_ellipse(all_key_points, ellipse_params, 'key_points')
+        plotter.plot_ellipse(key_points, ellipse_params, 'key_points')
 
     logging.info("Finish ellipse fitting")
 
@@ -220,8 +226,6 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)
-        if theta < 0:
-            theta = 2 * np.pi + theta  # Have all angles be in range [0, 2*pi)
         number.set_theta(theta)
 
     if debug:
@@ -242,12 +246,23 @@ def process_image(img_path, detection_model_path, key_point_model,
 
 # Find angle of needle ellipse point
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
-    if needle_angle < 0:
-        needle_angle = 2 * np.pi + needle_angle  # Have all angles be in range [0, 2*pi)
 
     # Find bottom point to set there the zero for wrap around
-    bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
-    theta_zero = get_polar_angle(bottom_middle, ellipse_params)
+    if WRAP_AROUND_FIX and start_point.shape == (1,
+                                                 2) and end_point.shape == (1,
+                                                                            2):
+        theta_start = get_polar_angle(start_point.flatten(), ellipse_params)
+        theta_end = get_polar_angle(end_point.flatten(), ellipse_params)
+        theta_zero = get_theta_middle(theta_start, theta_end)
+    else:
+        bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
+        theta_zero = get_polar_angle(bottom_middle, ellipse_params)
+
+    if debug:
+        zero_point = get_point_from_angle(theta_zero, ellipse_params)
+        plotter.plot_ellipse(
+            np.array(zero_point).reshape((1, 2)), ellipse_params, "zero_point")
+
     angle_converter = AngleConverter(theta_zero)
 
     angle_number_list = []
@@ -264,14 +279,14 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     reading = reading_line(needle_angle_conv)
 
-    result.append({'reading': reading})
+    result.append({PREDICTION_KEY: reading})
 
     if debug:
         print(f"Final reading is: {reading}")
         plotter.plot_final_reading_ellipse([], point_needle_ellipse,
                                            round(reading, 1), ellipse_params)
 
-    result_path = os.path.join(run_path, 'result.json')
+    result_path = os.path.join(run_path, RESULT_FILE_NAME)
     write_json_file(result_path, result)
 
 

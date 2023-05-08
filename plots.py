@@ -63,15 +63,15 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
-    def plot_test_point(self, point):
+    def plot_test_point(self, point, title):
         plt.figure(figsize=(12, 8))
         plt.imshow(self.image)
         plt.scatter(point[0], point[1], s=100, c='red', marker='x')
-        plt.title('Predicted Key Point')
+        plt.title(f"{title} Point")
 
         plt.tight_layout()
 
-        path = os.path.join(self.run_path, "test_point_result.jpg")
+        path = os.path.join(self.run_path, f"{title}_point_result.jpg")
         plt.savefig(path)
 
     def plot_key_points(self, key_point_list):
