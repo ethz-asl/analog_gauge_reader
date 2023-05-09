@@ -62,23 +62,27 @@ class KeyPointVal:
             # take it as numpy array and decrease dimension by one
             heatmaps = heatmaps.detach().numpy().squeeze(0)
 
-            key_points = full_key_point_extraction(heatmaps, threshold=0.6)
+            # plot the heatmaps in the run folder
+            heatmap_file_path = os.path.join(
+                path, HEATMAP_PREFIX + dataset.get_name(index) + '.jpg')
+            plot_heatmaps(heatmaps, annotation, heatmap_file_path)
+
+            # Extract key points
+            key_points_predicted = full_key_point_extraction(heatmaps,
+                                                             threshold=0.6)
             key_points_true = full_key_point_extraction(
                 annotation.detach().numpy(), threshold=0.95)
 
             print("key points extracted")
 
-            # plot the heatmaps in the run folder
-            heatmap_file_path = os.path.join(
-                path, HEATMAP_PREFIX + dataset.get_name(index) + '.jpg')
-            plot_heatmaps(heatmaps, annotation, heatmap_file_path)
+            # plot extracted key points
             key_point_file_path = os.path.join(
                 path, KEY_POINT_PREFIX + dataset.get_name(index) + '.jpg')
             #resize original image as well
             original_image_tensor = custom_transforms(train=False,
                                                       image=original_image)
-            plot_key_points(original_image_tensor, key_points, key_points_true,
-                            key_point_file_path)
+            plot_key_points(original_image_tensor, key_points_predicted,
+                            key_points_true, key_point_file_path)
 
     def validate(self):
         run_path = os.path.join(self.base_path, RUN_PATH + '_' + self.time_str)
@@ -98,28 +102,47 @@ def plot_heatmaps(heatmaps1, heatmaps2, filename):
 
     if N_HEATMAPS == 1:
         plt.subplot(2, 1, 1)
-        plt.imshow(heatmaps1.squeeze(0), cmap=plt.cm.viridis)
+        heatmap_plot = plt.imshow(heatmaps1.squeeze(0),
+                                  cmap=plt.cm.viridis,
+                                  vmin=0,
+                                  vmax=1)
+        plt.colorbar(heatmap_plot, shrink=0.5)
         plt.title('Predicted Heatmap')
 
         plt.subplot(2, 1, 2)
-        plt.imshow(heatmaps2.squeeze(0), cmap=plt.cm.viridis)
+        heatmap_plot = plt.imshow(heatmaps2.squeeze(0),
+                                  cmap=plt.cm.viridis,
+                                  vmin=0,
+                                  vmax=1)
+        plt.colorbar(heatmap_plot, shrink=0.5)
         plt.title('True Heatmap')
 
     else:
         titles = ['Start', 'Middle', 'End']
 
+        fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
+        plt.subplots_adjust(wspace=0.2,
+                            hspace=0,
+                            left=0.1,
+                            right=0.9,
+                            top=0.9,
+                            bottom=0.1)
         for i in range(3):
-            plt.subplot(2, 3, i + 1)
-            plt.imshow(heatmaps1[i], cmap=plt.cm.viridis)
-            plt.title(f'Predicted Heatmap {titles[i]}')
-
+            im = axs[0, i].imshow(heatmaps1[i],
+                                  cmap=plt.cm.viridis,
+                                  vmin=0,
+                                  vmax=1)
+            axs[0, i].set_title(f'Predicted Heatmap {titles[i]}')
+        im1 = im
         for i in range(3):
-            plt.subplot(2, 3, i + 4)
-            plt.imshow(heatmaps2[i], cmap=plt.cm.viridis)
-            plt.title(f'True Heatmap {titles[i]}')
-
-    # Adjust the layout of the subplots
-    plt.tight_layout()
+            im = axs[1, i].imshow(heatmaps2[i],
+                                  cmap=plt.cm.viridis,
+                                  vmin=0,
+                                  vmax=1)
+            axs[1, i].set_title(f'True Heatmap {titles[i]}')
+        im2 = im
+        fig.colorbar(im1, ax=axs[0, :], shrink=0.8)
+        fig.colorbar(im2, ax=axs[1, :], shrink=0.8)
 
     plt.savefig(filename, bbox_inches='tight')
 
