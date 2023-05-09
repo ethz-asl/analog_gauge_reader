@@ -10,11 +10,6 @@ def full_key_point_extraction(heatmaps,
                               visualize=False):
     key_point_list = []
     for i in range(heatmaps.shape[0]):
-        # middle = i == 1
-        # if middle:
-        #     threshold = 0.6
-        # else:
-        #     threshold = 0.8
         cluster_centers = extract_key_points(heatmaps[i], threshold, bandwidth,
                                              visualize)
         key_point_list.append(cluster_centers)

@@ -1,12 +1,17 @@
 import argparse
 import os
 import time
+import sys
 
 import torch
 
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
+parent_dir = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir))
+sys.path.append(parent_dir)
+
+# pylint: disable=wrong-import-position
 from key_point_dataset import RUN_PATH, KeypointImageDataSet, \
     TRAIN_PATH, IMG_PATH, LABEL_PATH
 from key_point_validator import KeyPointVal

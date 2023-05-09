@@ -1,10 +1,15 @@
 import argparse
 import os
 import time
+import sys
 
 import matplotlib
 import matplotlib.pyplot as plt
 
+parent_dir = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir))
+sys.path.append(parent_dir)
+
+# pylint: disable=wrong-import-position
 from key_point_dataset import KeypointImageDataSet, \
     IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH, custom_transforms
 from key_point_extraction import full_key_point_extraction
@@ -202,4 +207,7 @@ def read_args():
 
 
 if __name__ == '__main__':
+    current_dir = os.getcwd()
+    parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+    sys.path.append(parent_dir)
     main()
