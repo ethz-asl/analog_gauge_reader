@@ -272,7 +272,4 @@ def read_args():
 
 
 if __name__ == '__main__':
-    current_dir = os.getcwd()
-    parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
-    sys.path.append(parent_dir)
     main()
