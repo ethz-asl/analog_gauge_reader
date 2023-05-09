@@ -17,7 +17,7 @@ from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
 from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line
-from common import RESULT_FILE_NAME, PREDICTION_KEY
+from common import RESULT_FILE_NAME, READING_KEY
 
 OCR_THRESHOLD = 0.8
 RESOLUTION = (
@@ -279,7 +279,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     reading = reading_line(needle_angle_conv)
 
-    result.append({PREDICTION_KEY: reading})
+    result.append({READING_KEY: reading})
 
     if debug:
         print(f"Final reading is: {reading}")

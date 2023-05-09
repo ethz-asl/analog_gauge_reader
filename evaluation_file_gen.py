@@ -2,11 +2,17 @@ import os
 import json
 import argparse
 
+from common import RANGE_KEY, READING_KEY, MEASURE_UNIT_KEY
+
 
 def get_files_from_folder(folder):
     filenames = {}
-    for filename in os.listdir(folder):
-        filenames[filename] = 0
+    for filename in sorted(os.listdir(folder)):
+        filenames[filename] = {
+            READING_KEY: 0,
+            RANGE_KEY: 0,
+            MEASURE_UNIT_KEY: "bar"
+        }
     return filenames
 
 

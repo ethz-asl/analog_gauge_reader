@@ -2,7 +2,7 @@ import os
 import argparse
 import json
 
-from common import RESULT_FILE_NAME, PREDICTION_KEY
+from common import RESULT_FILE_NAME, READING_KEY, RANGE_KEY
 
 FAILED = 'Failed'
 PRED = 'prediction'
@@ -32,7 +32,7 @@ def get_predictions(run_path):
             if os.path.isfile(result_file):
                 with open(result_file, 'r') as file:
                     result_dict = json.load(file)
-                    predictions[subdir] = result_dict[0][PREDICTION_KEY]
+                    predictions[subdir] = result_dict[0][READING_KEY]
 
             else:
                 predictions[subdir] = FAILED
@@ -63,22 +63,29 @@ def main(run_path, true_readings_path):
     n_total = len(predictions)
     n_predicted = n_total - n_failed
 
-    results[N_FAILED] = f"{n_failed} / {n_predicted}"
+    results[N_FAILED] = f"{n_failed} / {n_total}"
 
     full_comparison = {}
 
     total_absolute_error = 0
+    total_relative_error = 0
     for key in predictions:
         full_comparison[key] = {}
         full_comparison[key][PRED] = predictions[key]
-        full_comparison[key][TRUTH] = true_readings[key]
+        full_comparison[key][TRUTH] = true_readings[key][READING_KEY]
+        unit_range = true_readings[key][RANGE_KEY]
 
         if predictions[key] != FAILED:
-            absolute_error = abs(predictions[key] - true_readings[key])
+            absolute_error = abs(predictions[key] -
+                                 true_readings[key][READING_KEY])
+            relative_error = absolute_error / unit_range
             full_comparison[key][ABS_ERROR] = absolute_error
+            full_comparison[key][REL_ERROR] = relative_error
             total_absolute_error += absolute_error / n_predicted
+            total_relative_error += relative_error / n_predicted
 
     results[ABS_ERROR] = total_absolute_error
+    results[REL_ERROR] = total_relative_error
     results[COMPARSION] = full_comparison
 
     outfile_path = os.path.join(run_path, "evaluation.json")
