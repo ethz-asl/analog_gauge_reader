@@ -2,6 +2,7 @@ import argparse
 import os
 import time
 import sys
+import json
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -12,13 +13,17 @@ sys.path.append(parent_dir)
 # pylint: disable=wrong-import-position
 from key_point_dataset import KeypointImageDataSet, \
     IMG_PATH, LABEL_PATH, TRAIN_PATH, RUN_PATH, custom_transforms
-from key_point_extraction import full_key_point_extraction
+from key_point_extraction import full_key_point_extraction, key_point_metrics,  \
+        MEAN_DIST_KEY, PCK_KEY, NON_ASSIGNED_KEY
 from model import load_model, N_HEATMAPS
 
 matplotlib.use('Agg')
 
 HEATMAP_PREFIX = "H_"
 KEY_POINT_PREFIX = "K_"
+
+HEATMAP_DIR = "heatmaps"
+KEYPOINT_DIR = "key_points"
 
 VAL_PATH = 'val'
 TEST_PATH = 'test'
@@ -53,9 +58,12 @@ class KeyPointVal:
             val=True)
 
     def validate_set(self, path, dataset):
+        key_point_metrics_dict = {}
         for index, data in enumerate(dataset):
             print(index)
             image, original_image, annotation = data
+
+            image_name = dataset.get_name(index)
 
             heatmaps = self.model(image.unsqueeze(0))
             print("inference done")
@@ -64,7 +72,7 @@ class KeyPointVal:
 
             # plot the heatmaps in the run folder
             heatmap_file_path = os.path.join(
-                path, HEATMAP_PREFIX + dataset.get_name(index) + '.jpg')
+                path, HEATMAP_DIR, HEATMAP_PREFIX + image_name + '.jpg')
             plot_heatmaps(heatmaps, annotation, heatmap_file_path)
 
             # Extract key points
@@ -75,14 +83,40 @@ class KeyPointVal:
 
             print("key points extracted")
 
+            key_point_metrics_dict[image_name] = key_point_metrics(
+                key_points_predicted[1], key_points_true[1])
+
             # plot extracted key points
             key_point_file_path = os.path.join(
-                path, KEY_POINT_PREFIX + dataset.get_name(index) + '.jpg')
+                path, KEYPOINT_DIR, KEY_POINT_PREFIX + image_name + '.jpg')
             #resize original image as well
             original_image_tensor = custom_transforms(train=False,
                                                       image=original_image)
             plot_key_points(original_image_tensor, key_points_predicted,
                             key_points_true, key_point_file_path)
+
+        # Evaluate total metrics and save them to file
+        total_mean_dist = 0
+        total_pck = 0
+        total_non_assigned = 0
+        n_tests = len(key_point_metrics_dict)
+        for single_metrics_dict in key_point_metrics_dict.values():
+            total_mean_dist += single_metrics_dict[MEAN_DIST_KEY] / n_tests
+            total_pck += single_metrics_dict[PCK_KEY] / n_tests
+            total_non_assigned += single_metrics_dict[
+                NON_ASSIGNED_KEY] / n_tests
+
+        full_metrics_dict = {
+            MEAN_DIST_KEY: total_mean_dist,
+            PCK_KEY: total_pck,
+            NON_ASSIGNED_KEY: total_non_assigned,
+            "Individual results": key_point_metrics_dict
+        }
+
+        metrics_file_path = os.path.join(path, "key_point_metrics.json")
+        full_metrics_json = json.dumps(full_metrics_dict, indent=4)
+        with open(metrics_file_path, "w") as outfile:
+            outfile.write(full_metrics_json)
 
     def validate(self):
         run_path = os.path.join(self.base_path, RUN_PATH + '_' + self.time_str)
@@ -90,11 +124,17 @@ class KeyPointVal:
         val_path = os.path.join(run_path, VAL_PATH)
 
         os.makedirs(run_path, exist_ok=True)
+
         os.makedirs(train_path, exist_ok=True)
         os.makedirs(val_path, exist_ok=True)
 
-        self.validate_set(train_path, self.train_dataset)
+        os.makedirs(os.path.join(train_path, HEATMAP_DIR))
+        os.makedirs(os.path.join(train_path, KEYPOINT_DIR))
+        os.makedirs(os.path.join(val_path, HEATMAP_DIR))
+        os.makedirs(os.path.join(val_path, KEYPOINT_DIR))
+
         self.validate_set(val_path, self.val_dataset)
+        self.validate_set(train_path, self.train_dataset)
 
 
 def plot_heatmaps(heatmaps1, heatmaps2, filename):
@@ -145,6 +185,7 @@ def plot_heatmaps(heatmaps1, heatmaps2, filename):
         fig.colorbar(im2, ax=axs[1, :], shrink=0.8)
 
     plt.savefig(filename, bbox_inches='tight')
+    plt.close()
 
 
 def plot_key_points(image, key_points_pred, key_points_true, filename):
@@ -200,6 +241,7 @@ def plot_key_points(image, key_points_pred, key_points_true, filename):
     plt.tight_layout()
 
     plt.savefig(filename, bbox_inches='tight')
+    plt.close()
 
 
 def main():
