@@ -17,7 +17,8 @@ from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
 from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line
-from common import ERROR_FILE_NAME, RESULT_FILE_NAME, READING_KEY, FAILED
+from common import ERROR_FILE_NAME, OCR_NONE_DETECTED_KEY, OCR_ONLY_ONE_DETECTED_KEY, \
+                   RESULT_FILE_NAME, READING_KEY, FAILED
 
 OCR_THRESHOLD = 0.7
 RESOLUTION = (
@@ -235,13 +236,13 @@ def process_image(img_path, detection_model_path, key_point_model,
     if len(number_labels) == 0:
         print("Didn't find any numbers with ocr")
         logging.error("Didn't find any numbers with ocr")
-        errors["No OCR reading with a number"] = True
+        errors[OCR_NONE_DETECTED_KEY] = True
         result.append({READING_KEY: FAILED})
         write_files(result, errors, run_path)
         return
     if len(number_labels) == 1:
         logging.warning("Only found 1 number with ocr")
-        errors["Only one number with ocr"] = True
+        errors[OCR_ONLY_ONE_DETECTED_KEY] = True
 
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)

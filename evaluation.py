@@ -2,14 +2,18 @@ import os
 import argparse
 import json
 
-from common import RESULT_FILE_NAME, READING_KEY, RANGE_KEY, FAILED
+from common import ERROR_FILE_NAME, RESULT_FILE_NAME, READING_KEY, FAILED, \
+    OCR_NONE_DETECTED_KEY, OCR_ONLY_ONE_DETECTED_KEY, RANGE_KEY
 
 PRED = 'prediction'
 TRUTH = 'true_reading'
 ABS_ERROR = 'total absolute error'
 REL_ERROR = 'total relative error'
 N_FAILED = 'number of failed predictions'
+N_FAILED_OCR = 'number of failed OCR, less than 2 numbers detected'
 COMPARSION = 'comparison'
+
+ERRORS = 'errors'
 
 
 def get_files_from_folder(folder):
@@ -17,6 +21,33 @@ def get_files_from_folder(folder):
     for filename in os.listdir(folder):
         filenames[filename] = 0
     return filenames
+
+
+def get_errors(run_path):
+    errors = {}
+    for subdir in os.listdir(run_path):
+
+        subdirectory = os.path.join(run_path, subdir)
+        if os.path.isdir(subdirectory):
+
+            result_file = os.path.join(subdirectory, ERROR_FILE_NAME)
+            if os.path.isfile(result_file):
+                with open(result_file, 'r') as file:
+                    errors_dict = json.load(file)
+                    errors[subdir] = errors_dict
+
+            else:
+                errors[subdir] = FAILED
+                print("Error: No Error file found! \
+                        Pipeline failed unexpectadly before error file could be made"
+                      )
+
+    outfile_path = os.path.join(run_path, "predictions_mean_errors.json")
+    errors_json = json.dumps(errors, indent=4)
+    with open(outfile_path, "w") as outfile:
+        outfile.write(errors_json)
+
+    return errors
 
 
 def get_predictions(run_path):
@@ -48,6 +79,7 @@ def get_predictions(run_path):
 
 def main(run_path, true_readings_path):
     predictions = get_predictions(run_path)
+    errors = get_errors(run_path)
     with open(true_readings_path, 'r') as file:
         true_readings = json.load(file)
 
@@ -63,6 +95,14 @@ def main(run_path, true_readings_path):
     n_predicted = n_total - n_failed
 
     results[N_FAILED] = f"{n_failed} / {n_total}"
+
+    n_ocr_failed = 0
+    for individual_error_dict in errors.values():
+        if OCR_NONE_DETECTED_KEY in individual_error_dict or \
+            OCR_ONLY_ONE_DETECTED_KEY in individual_error_dict:
+            n_ocr_failed += 1
+
+    results[N_FAILED_OCR] = n_ocr_failed
 
     full_comparison = {}
 
@@ -86,6 +126,8 @@ def main(run_path, true_readings_path):
     results[ABS_ERROR] = total_absolute_error
     results[REL_ERROR] = total_relative_error
     results[COMPARSION] = full_comparison
+
+    results[ERRORS] = errors
 
     outfile_path = os.path.join(run_path, "evaluation.json")
     results_json = json.dumps(results, indent=4)
