@@ -28,7 +28,9 @@ def segment_gauge_needle(image, model_path='best.pt'):
 
 def get_fitted_line(x_coords, y_coords):
     line_coeffs = np.polyfit(x_coords, y_coords, 1)
-    return line_coeffs
+    residual = np.sum(abs(np.polyval(line_coeffs, x_coords) - y_coords))
+    mean_res = residual / len(x_coords)
+    return line_coeffs, mean_res
 
 
 def get_start_end_line(needle_mask_x):

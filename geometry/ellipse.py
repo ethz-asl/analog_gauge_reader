@@ -177,6 +177,19 @@ def project_point(point, ellipse_params):
     return get_point_from_angle(theta, ellipse_params)
 
 
+# --------------------Get Ellipse Error------------------------------
+
+
+def get_ellipse_error(points, ellipse_params):
+    mean_dist = 0
+    n_points = len(points)
+    for point in points:
+        proj_point = project_point(point, ellipse_params)
+        distance = np.linalg.norm(proj_point - point)
+        mean_dist += distance / n_points
+    return mean_dist
+
+
 # --------------------Intersect Line and Ellipse------------------------------
 
 

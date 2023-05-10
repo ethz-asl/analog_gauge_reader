@@ -2,9 +2,8 @@ import os
 import argparse
 import json
 
-from common import RESULT_FILE_NAME, READING_KEY, RANGE_KEY
+from common import RESULT_FILE_NAME, READING_KEY, RANGE_KEY, FAILED
 
-FAILED = 'Failed'
 PRED = 'prediction'
 TRUTH = 'true_reading'
 ABS_ERROR = 'total absolute error'
