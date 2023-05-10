@@ -4,6 +4,7 @@ import time
 import sys
 import json
 
+import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -27,6 +28,9 @@ KEYPOINT_DIR = "key_points"
 
 VAL_PATH = 'val'
 TEST_PATH = 'test'
+
+MIDDLE_KEY = "middle"
+START_END_KEY = "start_end"
 
 
 class KeyPointVal:
@@ -83,8 +87,14 @@ class KeyPointVal:
 
             print("key points extracted")
 
-            key_point_metrics_dict[image_name] = key_point_metrics(
+            key_point_metrics_dict[image_name] = {}
+            key_point_metrics_dict[image_name][MIDDLE_KEY] = key_point_metrics(
                 key_points_predicted[1], key_points_true[1])
+            key_point_metrics_dict[image_name][
+                START_END_KEY] = key_point_metrics(
+                    np.vstack(
+                        (key_points_predicted[0], key_points_predicted[2])),
+                    np.vstack((key_points_true[0], key_points_true[2])))
 
             # plot extracted key points
             key_point_file_path = os.path.join(
@@ -96,22 +106,12 @@ class KeyPointVal:
                             key_points_true, key_point_file_path)
 
         # Evaluate total metrics and save them to file
-        total_mean_dist = 0
-        total_pck = 0
-        total_non_assigned = 0
-        n_tests = len(key_point_metrics_dict)
-        for single_metrics_dict in key_point_metrics_dict.values():
-            total_mean_dist += single_metrics_dict[MEAN_DIST_KEY] / n_tests
-            total_pck += single_metrics_dict[PCK_KEY] / n_tests
-            total_non_assigned += single_metrics_dict[
-                NON_ASSIGNED_KEY] / n_tests
-
-        full_metrics_dict = {
-            MEAN_DIST_KEY: total_mean_dist,
-            PCK_KEY: total_pck,
-            NON_ASSIGNED_KEY: total_non_assigned,
-            "Individual results": key_point_metrics_dict
-        }
+        full_metrics_dict = {}
+        full_metrics_dict[MIDDLE_KEY] = evaluate_total_metrics(
+            key_point_metrics_dict, MIDDLE_KEY)
+        full_metrics_dict[START_END_KEY] = evaluate_total_metrics(
+            key_point_metrics_dict, START_END_KEY)
+        full_metrics_dict["Individual results"] = key_point_metrics_dict
 
         metrics_file_path = os.path.join(path, "key_point_metrics.json")
         full_metrics_json = json.dumps(full_metrics_dict, indent=4)
@@ -135,6 +135,24 @@ class KeyPointVal:
 
         self.validate_set(val_path, self.val_dataset)
         self.validate_set(train_path, self.train_dataset)
+
+
+def evaluate_total_metrics(metrics_dict, key):
+    total_mean_dist = 0
+    total_pck = 0
+    total_non_assigned = 0
+    n_tests = len(metrics_dict)
+    for single_metrics_dict in metrics_dict.values():
+        total_mean_dist += single_metrics_dict[key][MEAN_DIST_KEY] / n_tests
+        total_pck += single_metrics_dict[key][PCK_KEY] / n_tests
+        total_non_assigned += single_metrics_dict[key][
+            NON_ASSIGNED_KEY] / n_tests
+    full_metrics_dict = {
+        MEAN_DIST_KEY: total_mean_dist,
+        PCK_KEY: total_pck,
+        NON_ASSIGNED_KEY: total_non_assigned,
+    }
+    return full_metrics_dict
 
 
 def plot_heatmaps(heatmaps1, heatmaps2, filename):
