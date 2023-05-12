@@ -1,27 +1,50 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.cluster import MeanShift
+from sklearn.cluster import MeanShift, KMeans
 from scipy.spatial.distance import cdist
 
+MEAN_DIST_KEY = "mean distance of predicted and true"
+PCK_KEY = "Percentage of true where at least one predicted is close"
+NON_ASSIGNED_KEY = "Percentage non assigned predicted points"
 
-def full_key_point_extraction(heatmaps,
-                              threshold=0.4,
-                              bandwidth=20,
-                              visualize=False):
+
+def full_key_point_extraction(heatmaps, threshold=0.4, bandwidth=20):
     key_point_list = []
     for i in range(heatmaps.shape[0]):
-        # middle = i == 1
-        # if middle:
-        #     threshold = 0.6
-        # else:
-        #     threshold = 0.8
-        cluster_centers = extract_key_points(heatmaps[i], threshold, bandwidth,
-                                             visualize)
-        key_point_list.append(cluster_centers)
+        # middle
+        if i == 1:
+            cluster_centers = extract_key_points(heatmaps[i], threshold,
+                                                 bandwidth)
+            key_point_list.append(cluster_centers)
+        # start and end
+        else:
+            cluster_center = extract_start_end_points(heatmaps[i], threshold)
+            key_point_list.append(cluster_center)
     return key_point_list
 
 
-def extract_key_points(heatmap, threshold, bandwidth, visualize=False):
+def extract_start_end_points(heatmap, threshold):
+    coords = np.argwhere(heatmap > threshold)
+    # swap coordinates
+    coords[:, [1, 0]] = coords[:, [0, 1]]
+    if coords.shape[0] == 0:
+        if threshold <= 0.1:
+            print(f"No point with confidence at least {threshold} detected.")
+            return coords
+
+        new_threshold = threshold / 2
+        print(f"No point with confidence at least {threshold} detected. "
+              f"Trying threshold {new_threshold}")
+        return extract_start_end_points(heatmap, new_threshold)
+
+    kmeans = KMeans(n_clusters=1, n_init=3)
+    kmeans.fit(coords)
+
+    cluster_center = kmeans.cluster_centers_
+
+    return cluster_center
+
+
+def extract_key_points(heatmap, threshold, bandwidth):
     """
     threshold is minimum confidence for points to be considered in clustering.
     increasing the threshold increases performance
@@ -50,35 +73,12 @@ def extract_key_points(heatmap, threshold, bandwidth, visualize=False):
     ms.fit(coords)
 
     # Plot results
-    labels = ms.labels_
     cluster_centers = ms.cluster_centers_
-
-    if visualize:
-        plt.scatter(coords[:, 0], coords[:, 1], c=labels)
-        plt.scatter(cluster_centers[:, 0],
-                    cluster_centers[:, 1],
-                    marker='x',
-                    color='red',
-                    s=300,
-                    linewidths=1,
-                    zorder=10)
-        plt.show()
 
     return cluster_centers
 
 
-def plot_key_points(image, key_points, file_path, plot=False):
-    plt.imshow(image)
-    plt.scatter(key_points[:, 0], key_points[:, 1], s=50, c='red', marker='x')
-    # save plot
-    plt.savefig(file_path, bbox_inches='tight')
-
-    # Show the plot
-    if plot:
-        plt.show()
-
-
-def key_point_metrics(predicted, ground_truth, threshold=5):
+def key_point_metrics(predicted, ground_truth, threshold=10):
     """
     Gives back three different metrics to evaluate the predicted keypoints.
     For mean_distance each prediction is assigned to the true keypoint
@@ -125,4 +125,9 @@ def key_point_metrics(predicted, ground_truth, threshold=5):
         ground_truth
     )  # compute PCK as percentage of correctly predicted keypoints
 
-    return mean_distance, pck, p_non_assigned
+    results_dict = {
+        MEAN_DIST_KEY: mean_distance,
+        PCK_KEY: pck,
+        NON_ASSIGNED_KEY: p_non_assigned
+    }
+    return results_dict

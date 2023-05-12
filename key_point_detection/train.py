@@ -1,12 +1,19 @@
 import argparse
 import os
 import time
+import sys
+import logging
+import json
 
 import torch
 
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
+parent_dir = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir))
+sys.path.append(parent_dir)
+
+# pylint: disable=wrong-import-position
 from key_point_dataset import RUN_PATH, KeypointImageDataSet, \
     TRAIN_PATH, IMG_PATH, LABEL_PATH
 from key_point_validator import KeyPointVal
@@ -41,6 +48,8 @@ class KeyPointTrain:
         self.criterion = nn.BCELoss()
 
         self.full_model = EncoderDecoder(self.feature_extractor, self.decoder)
+
+        self.loss = {}
 
     def _create_decoder(self):
         n_feature_channels = self.feature_extractor.get_number_output_channels(
@@ -81,13 +90,15 @@ class KeyPointTrain:
                 running_loss += loss.item()
 
             loss = running_loss / len(self.train_dataloader)
+            self.loss[epoch + 1] = loss
 
             # print new learning rate and loss
             before_lr = optimizer.param_groups[0]["lr"]
             scheduler.step(loss)
             after_lr = optimizer.param_groups[0]["lr"]
-            print(f"Epoch {epoch + 1}: Loss = {loss}, "
-                  f"lr {before_lr} -> {after_lr} ")
+            loss_msg = f"Epoch {epoch + 1}: Loss = {loss}, lr {before_lr} -> {after_lr}"
+            print(loss_msg)
+            logging.info(loss_msg)
 
         print('Finished Training')
 
@@ -108,6 +119,20 @@ def main():
     # fix seed for reproducibility
     torch.manual_seed(0)
 
+    # Setup run directory
+    time_str = time.strftime("%Y%m%d-%H%M%S")
+    run_path = os.path.join(base_path, RUN_PATH + '_' + time_str)
+    os.makedirs(run_path, exist_ok=True)
+
+    # Setup logger
+    log_path = os.path.join(run_path, "run.log")
+
+    logging.basicConfig(
+        filename=log_path,
+        filemode='w',
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.INFO)
+
     # initialize trainer
     if debug:
         print("initializing trainer")
@@ -117,18 +142,25 @@ def main():
         print("initialized trainer successfully")
 
     # train model
+    logging.info("Start training")
     if debug:
         print("start training")
+
     trainer.train(num_epochs, learning_rate)
+
+    logging.info("Finished training")
+
     model = trainer.get_full_model()
 
-    time_str = time.strftime("%Y%m%d-%H%M%S")
-    run_path = RUN_PATH + '_' + time_str
-    os.makedirs(os.path.join(base_path, run_path), exist_ok=True)
-
     # save model
-    model_path = os.path.join(base_path, run_path, f"model_{time_str}.pt")
+    model_path = os.path.join(run_path, f"model_{time_str}.pt")
     torch.save(model.state_dict(), model_path)
+
+    # save loss file
+    loss_path = os.path.join(run_path, "loss.json")
+    loss_json = json.dumps(trainer.loss, indent=4)
+    with open(loss_path, "w") as outfile:
+        outfile.write(loss_json)
 
     # save parameters to text file
     params = {
@@ -139,7 +171,7 @@ def main():
         'batch size': BATCH_SIZE
     }
 
-    param_file_path = os.path.join(base_path, run_path, "paramaters.txt")
+    param_file_path = os.path.join(run_path, "paramaters.txt")
     write_parameter_file(param_file_path, params)
 
     if val:

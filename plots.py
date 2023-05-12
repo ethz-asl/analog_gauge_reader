@@ -63,15 +63,15 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
-    def plot_test_point(self, point):
+    def plot_test_point(self, point, title):
         plt.figure(figsize=(12, 8))
         plt.imshow(self.image)
         plt.scatter(point[0], point[1], s=100, c='red', marker='x')
-        plt.title('Predicted Key Point')
+        plt.title(f"{title} Point")
 
         plt.tight_layout()
 
-        path = os.path.join(self.run_path, "test_point_result.jpg")
+        path = os.path.join(self.run_path, f"{title}_point_result.jpg")
         plt.savefig(path)
 
     def plot_key_points(self, key_point_list):
@@ -238,16 +238,33 @@ class Plotter:
         titles = ['Start', 'Middle', 'End']
 
         if heatmaps.shape[0] == 1:
-            plt.imshow(heatmaps[0], cmap=plt.cm.viridis)
+            heatmap_plot = plt.imshow(heatmaps[0],
+                                      cmap=plt.cm.viridis,
+                                      vmin=0,
+                                      vmax=1)
+            plt.colorbar(heatmap_plot, shrink=0.5)
             plt.title('Predicted Heatmap')
 
         else:
+            fig, (ax1, ax2, ax3) = plt.subplots(nrows=1,
+                                                ncols=3,
+                                                figsize=(15, 5))
+            plt.subplots_adjust(wspace=0.2,
+                                hspace=0.1,
+                                left=0.1,
+                                right=1.0,
+                                top=0.9,
+                                bottom=0.1)
+            axis = [ax1, ax2, ax3]
             for i in range(3):
-                plt.subplot(1, 3, i + 1)
-                plt.imshow(heatmaps[i], cmap=plt.cm.viridis)
-                plt.title(f'Predicted Heatmap {titles[i]}')
+                im = axis[i].imshow(heatmaps[i],
+                                    cmap=plt.cm.viridis,
+                                    vmin=0,
+                                    vmax=1)
+                axis[i].set_title(f'Predicted Heatmap {titles[i]}')
+            fig.colorbar(im, ax=axis, shrink=0.8)
 
-        plt.tight_layout()
+        # plt.tight_layout()
         path = os.path.join(self.run_path, "heatmaps_results.jpg")
         plt.savefig(path)
         # plt.show()

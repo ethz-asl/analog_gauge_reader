@@ -12,15 +12,19 @@ from plots import RUN_PATH, Plotter
 from gauge_detection.detection_inference import detection_gauge_face
 from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
-from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, get_polar_angle
+from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
+    get_point_from_angle, get_polar_angle, get_theta_middle, get_ellipse_error
 from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line
+from common import ERROR_FILE_NAME, OCR_NONE_DETECTED_KEY, OCR_ONLY_ONE_DETECTED_KEY, \
+                   RESULT_FILE_NAME, READING_KEY, FAILED
 
-OCR_THRESHOLD = 0.8
+OCR_THRESHOLD = 0.7
 RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
+WRAP_AROUND_FIX = True
 
 
 def read_args():
@@ -91,6 +95,7 @@ def process_image(img_path, detection_model_path, key_point_model,
                   segmentation_model, run_path, debug):
 
     result = []
+    errors = {}
 
     logging.info("Start processing image at path %s", img_path)
 
@@ -138,6 +143,10 @@ def process_image(img_path, detection_model_path, key_point_model,
     heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
     key_point_list = detect_key_points(heatmaps)
 
+    key_points = key_point_list[1]
+    start_point = key_point_list[0]
+    end_point = key_point_list[2]
+
     if debug:
         plotter.plot_heatmaps(heatmaps)
         plotter.plot_key_points(key_point_list)
@@ -152,12 +161,14 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Start ellipse fitting")
 
-    all_key_points = np.vstack(key_point_list)
-    coeffs = fit_ellipse(all_key_points[:, 0], all_key_points[:, 1])
+    coeffs = fit_ellipse(key_points[:, 0], key_points[:, 1])
     ellipse_params = cart_to_pol(coeffs)
 
+    ellipse_error = get_ellipse_error(key_points, ellipse_params)
+    errors["Ellipse fit error"] = ellipse_error
+
     if debug:
-        plotter.plot_ellipse(all_key_points, ellipse_params, 'key_points')
+        plotter.plot_ellipse(key_points, ellipse_params, 'key_points')
 
     logging.info("Finish ellipse fitting")
 
@@ -181,6 +192,12 @@ def process_image(img_path, detection_model_path, key_point_model,
         if reading.is_number() and reading.confidence > OCR_THRESHOLD:
             number_labels.append(reading)
 
+    mean_number_ocr_conf = 0
+    for number_label in number_labels:
+        mean_number_ocr_conf += number_label.confidence / len(number_labels)
+
+    errors["OCR numbers mean lack of confidence"] = 1 - mean_number_ocr_conf
+
     if debug:
         plotter.plot_ocr(number_labels, title='numbers')
 
@@ -196,8 +213,11 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     needle_mask_x, needle_mask_y = segment_gauge_needle(
         cropped_img, segmentation_model)
-    needle_line_coeffs = get_fitted_line(needle_mask_x, needle_mask_y)
+    needle_line_coeffs, needle_error = get_fitted_line(needle_mask_x,
+                                                       needle_mask_y)
     needle_line_start, needle_line_end = get_start_end_line(needle_mask_x)
+
+    errors["Needle fit error"] = needle_error
 
     if debug:
         plotter.plot_segmented_line(needle_mask_x, needle_mask_y,
@@ -216,12 +236,16 @@ def process_image(img_path, detection_model_path, key_point_model,
     if len(number_labels) == 0:
         print("Didn't find any numbers with ocr")
         logging.error("Didn't find any numbers with ocr")
+        errors[OCR_NONE_DETECTED_KEY] = True
+        result.append({READING_KEY: FAILED})
+        write_files(result, errors, run_path)
         return
+    if len(number_labels) == 1:
+        logging.warning("Only found 1 number with ocr")
+        errors[OCR_ONLY_ONE_DETECTED_KEY] = True
 
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)
-        if theta < 0:
-            theta = 2 * np.pi + theta  # Have all angles be in range [0, 2*pi)
         number.set_theta(theta)
 
     if debug:
@@ -237,17 +261,27 @@ def process_image(img_path, detection_model_path, key_point_model,
         plotter.plot_ellipse(point_needle_ellipse.reshape(1, 2),
                              ellipse_params, 'needle point')
 
+    # ------------------Fit line to angles and get reading of needle-------------------------
 
-# ------------------Fit line to angles and get reading of needle-------------------------
-
-# Find angle of needle ellipse point
+    # Find angle of needle ellipse point
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
-    if needle_angle < 0:
-        needle_angle = 2 * np.pi + needle_angle  # Have all angles be in range [0, 2*pi)
 
     # Find bottom point to set there the zero for wrap around
-    bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
-    theta_zero = get_polar_angle(bottom_middle, ellipse_params)
+    if WRAP_AROUND_FIX and start_point.shape == (1,
+                                                 2) and end_point.shape == (1,
+                                                                            2):
+        theta_start = get_polar_angle(start_point.flatten(), ellipse_params)
+        theta_end = get_polar_angle(end_point.flatten(), ellipse_params)
+        theta_zero = get_theta_middle(theta_start, theta_end)
+    else:
+        bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
+        theta_zero = get_polar_angle(bottom_middle, ellipse_params)
+
+    if debug:
+        zero_point = get_point_from_angle(theta_zero, ellipse_params)
+        plotter.plot_ellipse(
+            np.array(zero_point).reshape((1, 2)), ellipse_params, "zero_point")
+
     angle_converter = AngleConverter(theta_zero)
 
     angle_number_list = []
@@ -260,24 +294,40 @@ def process_image(img_path, detection_model_path, key_point_model,
                                     angle_number_arr[:, 1], 1)
     reading_line = np.poly1d(reading_line_coeff)
 
+    reading_line_res = np.sum(
+        abs(
+            np.polyval(reading_line_coeff, angle_number_arr[:, 0]) -
+            angle_number_arr[:, 1]))
+    reading_line_mean_err = reading_line_res / len(angle_number_arr)
+    errors["Mean residual on fitted angle line"] = reading_line_mean_err
+
     needle_angle_conv = angle_converter.convert_angle(needle_angle)
 
     reading = reading_line(needle_angle_conv)
 
-    result.append({'reading': reading})
+    result.append({READING_KEY: reading})
 
     if debug:
         print(f"Final reading is: {reading}")
         plotter.plot_final_reading_ellipse([], point_needle_ellipse,
                                            round(reading, 1), ellipse_params)
 
-    result_path = os.path.join(run_path, 'result.json')
+    # ------------------Write result to file-------------------------
+    write_files(result, errors, run_path)
+
+
+def write_files(result, errors, run_path):
+    result_path = os.path.join(run_path, RESULT_FILE_NAME)
     write_json_file(result_path, result)
+
+    error_path = os.path.join(run_path, ERROR_FILE_NAME)
+    write_json_file(error_path, errors)
 
 
 def write_json_file(filename, dictionary):
+    file_json = json.dumps(dictionary, indent=4)
     with open(filename, "w") as outfile:
-        json.dump(dictionary, outfile)
+        outfile.write(file_json)
 
 
 def main():

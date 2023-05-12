@@ -8,7 +8,7 @@ from PIL import Image
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 
-from model import INPUT_SIZE, N_HEATMAPS
+from key_point_detection.model import INPUT_SIZE, N_HEATMAPS
 
 # Constants
 

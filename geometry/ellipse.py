@@ -119,12 +119,21 @@ def get_ellipse_pts(params, npts=100, tmin=0, tmax=2 * np.pi):
 
 
 def get_polar_angle(point, ellipse_params):
+    """Returns angles in range [0, 2*pi)"""
+    theta = _get_polar_angle(point, ellipse_params)
+    if theta < 0:
+        theta = 2 * np.pi + theta
+    return theta
+
+
+def _get_polar_angle(point, ellipse_params):
     """
     Formula taken from
     https://www.petercollingridge.co.uk/tutorials/computational-geometry/finding-angle-around-ellipse/
     Important: This doesn't calculate the actual angle
     but the theta in the parametrization x = a*cos(theta), y=b*sin(theta)
     See link if you want to get the actual angle.
+    Returns angles in range [-pi, pi]
     """
     x0, y0, ap, bp, phi = ellipse_params
 
@@ -164,8 +173,21 @@ def get_point_from_angle(theta, ellipse_params):
 
 
 def project_point(point, ellipse_params):
-    theta = get_polar_angle(point, ellipse_params)
+    theta = _get_polar_angle(point, ellipse_params)
     return get_point_from_angle(theta, ellipse_params)
+
+
+# --------------------Get Ellipse Error------------------------------
+
+
+def get_ellipse_error(points, ellipse_params):
+    mean_dist = 0
+    n_points = len(points)
+    for point in points:
+        proj_point = project_point(point, ellipse_params)
+        distance = np.linalg.norm(proj_point - point)
+        mean_dist += distance / n_points
+    return mean_dist
 
 
 # --------------------Intersect Line and Ellipse------------------------------
@@ -262,3 +284,25 @@ def find_intersection_points_centered(line_coeffs, ellipse_params):
     y_intersected = line(x_intersected)
 
     return np.vstack((x_intersected, y_intersected))
+
+
+# --------------------Get middle point of two angles------------------------------
+
+
+def get_theta_middle(theta_1, theta_2):
+    """
+    Return the point on an ellipse that is between two other points on an ellipse.
+    """
+    candidate_1 = (theta_2 + theta_1) / 2
+    if theta_2 + theta_1 > 2 * np.pi:
+        candidate_2 = (theta_2 + theta_1 - 2 * np.pi) / 2
+    else:
+        candidate_2 = (theta_2 + theta_1 + 2 * np.pi) / 2
+
+    distance_1 = min(abs(candidate_1 - theta_1), abs(candidate_1 - theta_2))
+    distance_2 = min(abs(candidate_2 - theta_1), abs(candidate_2 - theta_2))
+
+    if distance_1 < distance_2:
+        return candidate_1
+
+    return candidate_2
