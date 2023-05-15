@@ -1,6 +1,7 @@
 from ultralytics import YOLO
 import numpy as np
 import cv2
+from scipy import odr
 
 
 def segment_gauge_needle(image, model_path='best.pt'):
@@ -27,10 +28,20 @@ def segment_gauge_needle(image, model_path='best.pt'):
 
 
 def get_fitted_line(x_coords, y_coords):
-    line_coeffs = np.polyfit(x_coords, y_coords, 1)
-    residual = np.sum(abs(np.polyval(line_coeffs, x_coords) - y_coords))
-    mean_res = residual / len(x_coords)
-    return line_coeffs, mean_res
+    """
+    Do orthogonal distance regression (odr) for this.
+    """
+    odr_model = odr.Model(linear)
+    data = odr.Data(x_coords, y_coords)
+    ordinal_distance_reg = odr.ODR(data, odr_model, beta0=[0.2, 1.], maxit=600)
+    out = ordinal_distance_reg.run()
+    line_coeffs = out.beta
+    residual_variance = out.res_var
+    return line_coeffs, residual_variance
+
+
+def linear(B, x):
+    return B[0] * x + B[1]
 
 
 def get_start_end_line(needle_mask_x):

@@ -217,7 +217,7 @@ def process_image(img_path, detection_model_path, key_point_model,
                                                        needle_mask_y)
     needle_line_start, needle_line_end = get_start_end_line(needle_mask_x)
 
-    errors["Needle fit error"] = needle_error
+    errors["Needle line residual variance"] = needle_error
 
     if debug:
         plotter.plot_segmented_line(needle_mask_x, needle_mask_y,
