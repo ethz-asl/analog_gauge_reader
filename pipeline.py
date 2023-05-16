@@ -18,43 +18,13 @@ from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line, cut_off_line
 # pylint: disable=no-name-in-module
-from evaluation.constants import ERROR_FILE_NAME, OCR_NONE_DETECTED_KEY, \
-                   OCR_ONLY_ONE_DETECTED_KEY, RESULT_FILE_NAME, READING_KEY, FAILED
+from evaluation import constants
 
 OCR_THRESHOLD = 0.7
 RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
 WRAP_AROUND_FIX = True
-
-
-def read_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--input',
-        type=str,
-        required=True,
-        help=
-        "Path to input image. If a directory then it will pass all images of directory"
-    )
-    parser.add_argument('--detection_model',
-                        type=str,
-                        required=True,
-                        help="Path to detection model")
-    parser.add_argument('--key_point_model',
-                        type=str,
-                        required=True,
-                        help="Path to key point model")
-    parser.add_argument('--segmentation_model',
-                        type=str,
-                        required=True,
-                        help="Path to segmentation model")
-    parser.add_argument('--base_path',
-                        type=str,
-                        required=True,
-                        help="Path where run folder is stored")
-    parser.add_argument('--debug', action='store_true')
-    return parser.parse_args()
 
 
 def crop_image(img, box):
@@ -93,18 +63,28 @@ def crop_image(img, box):
 
 
 def process_image(img_path, detection_model_path, key_point_model,
-                  segmentation_model, run_path, debug):
+                  segmentation_model, run_path, debug, eval_mode):
 
     result = []
     errors = {}
+
+    if eval_mode:
+        result_full = {}
 
     logging.info("Start processing image at path %s", img_path)
 
     image = Image.open(img_path).convert("RGB")
     image = np.asarray(image)
 
+    if eval_mode:
+        result_full[constants.IMG_SIZE_KEY] = {
+            'width': image.shape[1],
+            'height': image.shape[0]
+        }
+
     if debug:
         plotter = Plotter(run_path, image)
+        plotter.save_img()
 
     # ------------------Gauge detection-------------------------
     if debug:
@@ -125,6 +105,14 @@ def process_image(img_path, detection_model_path, key_point_model,
     cropped_img = cv2.resize(cropped_img,
                              dsize=RESOLUTION,
                              interpolation=cv2.INTER_CUBIC)
+
+    if eval_mode:
+        result_full[constants.GAUGE_DET_KEY] = {
+            'x': box[0].item(),
+            'y': box[1].item(),
+            'width': box[2].item() - box[0].item(),
+            'height': box[3].item() - box[1].item(),
+        }
 
     if debug:
         plotter.set_image(cropped_img)
@@ -199,6 +187,18 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     errors["OCR numbers mean lack of confidence"] = 1 - mean_number_ocr_conf
 
+    if eval_mode:
+        ocr_bbox_list = []
+        for number_label in number_labels:
+            box = number_label.get_bounding_box()
+            ocr_bbox_list.append({
+                'x': box[0],
+                'y': box[1],
+                'width': box[2] - box[0],
+                'height': box[3] - box[1],
+            })
+        result_full[constants.OCR_NUM_KEY] = ocr_bbox_list
+
     if debug:
         plotter.plot_ocr(number_labels, title='numbers')
 
@@ -243,13 +243,13 @@ def process_image(img_path, detection_model_path, key_point_model,
     if len(number_labels) == 0:
         print("Didn't find any numbers with ocr")
         logging.error("Didn't find any numbers with ocr")
-        errors[OCR_NONE_DETECTED_KEY] = True
-        result.append({READING_KEY: FAILED})
+        errors[constants.OCR_NONE_DETECTED_KEY] = True
+        result.append({constants.READING_KEY: constants.FAILED})
         write_files(result, errors, run_path)
         return
     if len(number_labels) == 1:
         logging.warning("Only found 1 number with ocr")
-        errors[OCR_ONLY_ONE_DETECTED_KEY] = True
+        errors[constants.OCR_ONLY_ONE_DETECTED_KEY] = True
 
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)
@@ -312,7 +312,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     reading = reading_line(needle_angle_conv)
 
-    result.append({READING_KEY: reading})
+    result.append({constants.READING_KEY: reading})
 
     if debug:
         print(f"Final reading is: {reading}")
@@ -322,12 +322,17 @@ def process_image(img_path, detection_model_path, key_point_model,
     # ------------------Write result to file-------------------------
     write_files(result, errors, run_path)
 
+    if eval_mode:
+        result_full_path = os.path.join(run_path,
+                                        constants.RESULT_FULL_FILE_NAME)
+        write_json_file(result_full_path, result_full)
+
 
 def write_files(result, errors, run_path):
-    result_path = os.path.join(run_path, RESULT_FILE_NAME)
+    result_path = os.path.join(run_path, constants.RESULT_FILE_NAME)
     write_json_file(result_path, result)
 
-    error_path = os.path.join(run_path, ERROR_FILE_NAME)
+    error_path = os.path.join(run_path, constants.ERROR_FILE_NAME)
     write_json_file(error_path, errors)
 
 
@@ -369,7 +374,8 @@ def main():
                       key_point_model,
                       segmentation_model,
                       run_path,
-                      debug=args.debug)
+                      debug=args.debug,
+                      eval_mode=args.eval)
     elif os.path.isdir(input_path):
         for image_name in os.listdir(input_path):
             img_path = os.path.join(input_path, image_name)
@@ -380,7 +386,8 @@ def main():
                               key_point_model,
                               segmentation_model,
                               run_path,
-                              debug=args.debug)
+                              debug=args.debug,
+                              eval_mode=args.eval)
 
             # pylint: disable=broad-except
             # For now want to catch general exceptions and still continue with the other images.
@@ -388,6 +395,36 @@ def main():
                 err_msg = f"Unexpected {err=}, {type(err)=}"
                 print(err_msg)
                 logging.error(err_msg)
+
+
+def read_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--input',
+        type=str,
+        required=True,
+        help=
+        "Path to input image. If a directory then it will pass all images of directory"
+    )
+    parser.add_argument('--detection_model',
+                        type=str,
+                        required=True,
+                        help="Path to detection model")
+    parser.add_argument('--key_point_model',
+                        type=str,
+                        required=True,
+                        help="Path to key point model")
+    parser.add_argument('--segmentation_model',
+                        type=str,
+                        required=True,
+                        help="Path to segmentation model")
+    parser.add_argument('--base_path',
+                        type=str,
+                        required=True,
+                        help="Path where run folder is stored")
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--eval', action='store_true')
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

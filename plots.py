@@ -3,6 +3,7 @@ from matplotlib.patches import Polygon
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+from PIL import Image
 
 from geometry.ellipse import get_ellipse_pts, get_point_from_angle
 
@@ -17,6 +18,11 @@ class Plotter:
 
     def set_image(self, image):
         self.image = image
+
+    def save_img(self):
+        im = Image.fromarray(self.image)
+        path = os.path.join(self.run_path, "original_image.jpg")
+        im.save(path)
 
     def plot_image(self, title):
         plt.figure()
