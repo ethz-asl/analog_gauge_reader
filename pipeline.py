@@ -17,8 +17,9 @@ from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
 from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line, cut_off_line
-from common import ERROR_FILE_NAME, OCR_NONE_DETECTED_KEY, OCR_ONLY_ONE_DETECTED_KEY, \
-                   RESULT_FILE_NAME, READING_KEY, FAILED
+# pylint: disable=no-name-in-module
+from evaluation.constants import ERROR_FILE_NAME, OCR_NONE_DETECTED_KEY, \
+                   OCR_ONLY_ONE_DETECTED_KEY, RESULT_FILE_NAME, READING_KEY, FAILED
 
 OCR_THRESHOLD = 0.7
 RESOLUTION = (

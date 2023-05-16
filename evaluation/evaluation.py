@@ -2,7 +2,7 @@ import os
 import argparse
 import json
 
-from common import ERROR_FILE_NAME, RESULT_FILE_NAME, READING_KEY, FAILED, \
+from constants import ERROR_FILE_NAME, RESULT_FILE_NAME, READING_KEY, FAILED, \
     OCR_NONE_DETECTED_KEY, OCR_ONLY_ONE_DETECTED_KEY, RANGE_KEY
 
 PRED = 'prediction'
