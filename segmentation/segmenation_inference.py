@@ -44,5 +44,22 @@ def linear(B, x):
     return B[0] * x + B[1]
 
 
-def get_start_end_line(needle_mask_x):
-    return np.min(needle_mask_x), np.max(needle_mask_x)
+def get_start_end_line(needle_mask):
+    return np.min(needle_mask), np.max(needle_mask)
+
+
+def cut_off_line(x, y_min, y_max, line_coeffs):
+    line = np.poly1d(line_coeffs)
+    y = line(x)
+    _cut_off(x, y, y_min, y_max, line_coeffs, 0)
+    _cut_off(x, y, y_min, y_max, line_coeffs, 1)
+    return x[0], x[1]
+
+
+def _cut_off(x, y, y_min, y_max, line_coeffs, i):
+    if y[i] > y_max:
+        y[i] = y_max
+        x[i] = 1 / line_coeffs[0] * (y_max - line_coeffs[1])
+    if y[i] < y_min:
+        y[i] = y_min
+        x[i] = 1 / line_coeffs[0] * (y_min - line_coeffs[1])

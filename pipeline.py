@@ -16,7 +16,7 @@ from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
     get_point_from_angle, get_polar_angle, get_theta_middle, get_ellipse_error
 from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
-    get_fitted_line
+    get_fitted_line, cut_off_line
 from common import ERROR_FILE_NAME, OCR_NONE_DETECTED_KEY, OCR_ONLY_ONE_DETECTED_KEY, \
                    RESULT_FILE_NAME, READING_KEY, FAILED
 
@@ -215,12 +215,18 @@ def process_image(img_path, detection_model_path, key_point_model,
         cropped_img, segmentation_model)
     needle_line_coeffs, needle_error = get_fitted_line(needle_mask_x,
                                                        needle_mask_y)
-    needle_line_start, needle_line_end = get_start_end_line(needle_mask_x)
+    needle_line_start_x, needle_line_end_x = get_start_end_line(needle_mask_x)
+    needle_line_start_y, needle_line_end_y = get_start_end_line(needle_mask_y)
+
+    needle_line_start_x, needle_line_end_x = cut_off_line(
+        [needle_line_start_x, needle_line_end_x], needle_line_start_y,
+        needle_line_end_y, needle_line_coeffs)
 
     errors["Needle line residual variance"] = needle_error
 
     if debug:
         plotter.plot_segmented_line(needle_mask_x, needle_mask_y,
+                                    (needle_line_start_x, needle_line_end_x),
                                     needle_line_coeffs)
 
     logging.info("Finish segmentation")
@@ -254,7 +260,7 @@ def process_image(img_path, detection_model_path, key_point_model,
     # ------------------Project Needle to ellipse-------------------------
 
     point_needle_ellipse = get_line_ellipse_point(
-        needle_line_coeffs, (needle_line_start, needle_line_end),
+        needle_line_coeffs, (needle_line_start_x, needle_line_end_x),
         ellipse_params)
 
     if debug:

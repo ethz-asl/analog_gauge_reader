@@ -219,13 +219,14 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
-    def plot_segmented_line(self, x_coords, y_coords, line_coeffs):
+    def plot_segmented_line(self, x_coords, y_coords, x_start_end,
+                            line_coeffs):
         line_fn = np.poly1d(line_coeffs)
         # Plot the line on top of the image
         plt.figure()
         plt.imshow(self.image)
         plt.scatter(x_coords, y_coords)
-        plt.plot(x_coords, line_fn(x_coords), color='red')
+        plt.plot(x_start_end, line_fn(x_start_end), color='red')
 
         path = os.path.join(self.run_path, "segmentation_results.jpg")
         plt.savefig(path)
