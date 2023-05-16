@@ -39,7 +39,7 @@ def get_errors(run_path):
             else:
                 errors[subdir] = FAILED
                 print("Error: No Error file found! \
-                        Pipeline failed unexpectadly before error file could be made"
+                        Pipeline failed unexpectedly before error file could be made"
                       )
 
     outfile_path = os.path.join(run_path, "predictions_mean_errors.json")
