@@ -136,6 +136,22 @@ def process_image(img_path, detection_model_path, key_point_model,
     start_point = key_point_list[0]
     end_point = key_point_list[2]
 
+    if eval_mode:
+        result_full[constants.KEYPOINT_START_KEY] = {
+            'x': start_point[0][0],
+            'y': start_point[0][1]
+        }
+        result_full[constants.KEYPOINT_END_KEY] = {
+            'x': end_point[0][0],
+            'y': end_point[0][1]
+        }
+        result_full[constants.KEYPOINT_NOTCH_KEY] = []
+        for point in key_points:
+            result_full[constants.KEYPOINT_NOTCH_KEY].append({
+                'x': point[0],
+                'y': point[1]
+            })
+
     if debug:
         plotter.plot_heatmaps(heatmaps)
         plotter.plot_key_points(key_point_list)

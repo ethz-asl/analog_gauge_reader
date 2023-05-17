@@ -5,7 +5,7 @@ import os
 import constants
 
 
-def get_annotations_from_label_data(data):
+def get_annotations_bbox(data):
 
     annotation_dict = {}
 
@@ -18,11 +18,25 @@ def get_annotations_from_label_data(data):
         idx = data_point['data']['image'].find('-') + 1
         image_name = data_point['data']['image'][idx:]
 
+        img_width = data_point['annotations'][0]['result'][0]['original_width']
+        img_height = data_point['annotations'][0]['result'][0][
+            'original_height']
+
+        bbox_annotations[constants.IMG_SIZE_KEY] = {
+            'width': img_width,
+            'height': img_height
+        }
+
         bbox_annotations[constants.OCR_NUM_KEY] = []
         bbox_annotations[constants.OCR_UNIT_KEY] = []
         bbox_annotations[constants.GAUGE_DET_KEY] = []
 
         for annotation in data_point['annotations'][0]['result']:
+
+            # Image original size saved for each annotation individually.
+            # check that all are the same
+            assert img_width == annotation['original_width'] and \
+                    img_height == annotation['original_height']
 
             if annotation['value']['rectanglelabels'][
                     0] == constants.OCR_NUM_KEY:
@@ -50,11 +64,101 @@ def get_annotations_from_label_data(data):
     return annotation_dict
 
 
-def get_annoations_from_json(annotation_path):
-    with open(annotation_path, 'r') as file:
-        bbox_true_dict = json.load(file)
+def get_annotations_keypoint(data):
 
-    return get_annotations_from_label_data(bbox_true_dict)
+    annotation_dict = {}
+
+    for data_point in data:
+
+        keypoint_annotations = {}
+        # Get image name. We have image name in format :
+        # /data/upload/1/222ae49e-1_cropped_000001_jpg.rf.c7410b0b01b2bc3a6cdff656618a3015.jpg
+        # get rid of everything before the '-'
+        idx = data_point['data']['img'].find('-') + 1
+        image_name = data_point['data']['img'][idx:]
+
+        img_width = data_point['annotations'][0]['result'][0]['original_width']
+        img_height = data_point['annotations'][0]['result'][0][
+            'original_height']
+
+        keypoint_annotations[constants.IMG_SIZE_KEY] = {
+            'width': img_width,
+            'height': img_height
+        }
+
+        keypoint_annotations[constants.KEYPOINT_NOTCH_KEY] = []
+        keypoint_annotations[constants.KEYPOINT_START_KEY] = []
+        keypoint_annotations[constants.KEYPOINT_END_KEY] = []
+
+        for annotation in data_point['annotations'][0]['result']:
+
+            # Image original size saved for each annotation individually.
+            # check that all are the same
+            assert img_width == annotation['original_width'] and \
+                    img_height == annotation['original_height']
+
+            keypoint_annotations[constants.KEYPOINT_NOTCH_KEY].append(
+                {k: annotation['value'][k]
+                 for k in ('x', 'y')})
+
+            if annotation['value']['keypointlabels'][
+                    0] == constants.KEYPOINT_START_KEY:
+                keypoint_annotations[constants.KEYPOINT_START_KEY].append(
+                    {k: annotation['value'][k]
+                     for k in ('x', 'y')})
+
+            if annotation['value']['keypointlabels'][
+                    0] == constants.KEYPOINT_END_KEY:
+                keypoint_annotations[constants.KEYPOINT_END_KEY].append(
+                    {k: annotation['value'][k]
+                     for k in ('x', 'y')})
+
+        annotation_dict[image_name] = keypoint_annotations
+
+    return annotation_dict
+
+
+def get_annotations_from_json(bbox_path, key_point_path):
+    with open(bbox_path, 'r') as file:
+        bbox_true_dict = json.load(file)
+    with open(key_point_path, 'r') as file:
+        keypoint_true_dict = json.load(file)
+
+    bbox_dict = get_annotations_bbox(bbox_true_dict)
+    key_point_dict = get_annotations_keypoint(keypoint_true_dict)
+
+    assert set(bbox_dict.keys()) == set(key_point_dict.keys())
+
+    full_annotations = {}
+    for key in bbox_dict:
+
+        bbox_img_width = bbox_dict[key][constants.IMG_SIZE_KEY]['width']
+        bbox_img_height = bbox_dict[key][constants.IMG_SIZE_KEY]['height']
+        keypoint_img_width = key_point_dict[key][
+            constants.IMG_SIZE_KEY]['width']
+        keypoint_img_height = key_point_dict[key][
+            constants.IMG_SIZE_KEY]['height']
+        assert bbox_img_width == keypoint_img_width  and \
+                bbox_img_height == keypoint_img_height
+
+        full_annotations[key] = {
+            constants.IMG_SIZE_KEY:
+            bbox_dict[key][constants.IMG_SIZE_KEY],
+            constants.OCR_NUM_KEY:
+            bbox_dict[key][constants.OCR_NUM_KEY],
+            constants.OCR_UNIT_KEY:
+            bbox_dict[key][constants.OCR_UNIT_KEY],
+            constants.GAUGE_DET_KEY:
+            bbox_dict[key][constants.GAUGE_DET_KEY],
+            constants.KEYPOINT_NOTCH_KEY:
+            key_point_dict[key][constants.KEYPOINT_NOTCH_KEY],
+            constants.KEYPOINT_START_KEY:
+            key_point_dict[key][constants.KEYPOINT_START_KEY],
+            constants.KEYPOINT_END_KEY:
+            key_point_dict[key][constants.KEYPOINT_END_KEY],
+        }
+
+    return full_annotations
 
 
 def write_json(path, dictionary):
@@ -116,15 +220,15 @@ def bb_intersection_over_union(boxA, boxB):
     return iou
 
 
-def main(annotation_path, run_path, debug):
+def main(bbox_path, key_point_path, run_path, debug):
 
-    annotation_dict = get_annoations_from_json(annotation_path)
+    annotation_dict = get_annotations_from_json(bbox_path, key_point_path)
     predictions_dict = get_predictions(run_path)
 
     print(predictions_dict)
 
     if debug:
-        outfile_path = os.path.join(run_path, "true_bbox.json")
+        outfile_path = os.path.join(run_path, "true_annotations.json")
         write_json(outfile_path, annotation_dict)
 
 
@@ -134,6 +238,10 @@ def read_args():
                         type=str,
                         required=True,
                         help="Path to json file with labels for bbox")
+    parser.add_argument('--keypoint_true_path',
+                        type=str,
+                        required=True,
+                        help="Path to json file with labels for keypoints")
     parser.add_argument('--run_path',
                         type=str,
                         required=True,
@@ -144,4 +252,5 @@ def read_args():
 
 if __name__ == "__main__":
     args = read_args()
-    main(args.bbox_true_path, args.run_path, args.debug)
+    main(args.bbox_true_path, args.keypoint_true_path, args.run_path,
+         args.debug)

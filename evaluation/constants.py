@@ -14,6 +14,9 @@ OCR_ONLY_ONE_DETECTED_KEY = "Only found 1 number with ocr"
 OCR_NUM_KEY = "OCR Numbers"
 OCR_UNIT_KEY = "OCR Unit"
 GAUGE_DET_KEY = "Gauge"
+KEYPOINT_START_KEY = "Start Notch"
+KEYPOINT_END_KEY = "End Notch"
+KEYPOINT_NOTCH_KEY = "Keypoint Notch"
 IMG_SIZE_KEY = "image size"
 
 # Other constants-------------------------------------------------------
