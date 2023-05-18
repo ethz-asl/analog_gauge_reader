@@ -206,13 +206,21 @@ def get_line_ellipse_point(line_coeffs, x, ellipse_params):
     intersection_points = find_line_ellipse_intersection(
         line_coeffs, x, ellipse_params)
 
-    if intersection_points.shape[1] == 2:
+    if intersection_points.shape[0] == 2:
+        # Check if line there is exactly one intersection point on line.
+        # If yes pick it, if not pick the one closest to either end point
+        if _inbetween(x[0], x[1], intersection_points[0][0]) and \
+            not _inbetween(x[0], x[1], intersection_points[1][0]) :
+            return intersection_points[0]
+        if _inbetween(x[0], x[1], intersection_points[1][0]) and \
+            not _inbetween(x[0], x[1], intersection_points[0][0]) :
+            return intersection_points[1]
+
         line = np.poly1d(line_coeffs)
         y = line(x)
         start_end_points = np.vstack((x, y)).T
 
-        intersection_points = intersection_points.T
-
+        # Calculate distances of start/end points and intersection points
         distances = np.zeros((2, 2))
         for i in range(2):
             for j in range(2):
@@ -223,6 +231,10 @@ def get_line_ellipse_point(line_coeffs, x, ellipse_params):
         return intersection_points[min_idx]
 
     return intersection_points
+
+
+def _inbetween(start, end, x):
+    return start <= x <= end
 
 
 def find_line_ellipse_intersection(line_coeffs, x, ellipse_params):
@@ -240,6 +252,7 @@ def find_line_ellipse_intersection(line_coeffs, x, ellipse_params):
     line = np.poly1d(line_coeffs)
     y = line(x)
 
+    # shift ellipse center to origin
     x_shift = x - x0
     y_shift = y - y0
     points_shift = np.vstack((x_shift, y_shift))
@@ -252,9 +265,11 @@ def find_line_ellipse_intersection(line_coeffs, x, ellipse_params):
 
     line_coeffs_rot = np.polyfit(x_rotate, y_rotate, 1)
 
+    # Do actual intersection on centered ellipse
     intersection_points_centered = find_intersection_points_centered(
         line_coeffs_rot, ellipse_params)
 
+    # rotate back
     R_inv = np.array([[np.cos(phi), -np.sin(phi)], [np.sin(phi), np.cos(phi)]])
     intersection_points = R_inv @ intersection_points_centered
 
@@ -262,13 +277,18 @@ def find_line_ellipse_intersection(line_coeffs, x, ellipse_params):
     x = intersection_points[0, :] + x0
     y = intersection_points[1, :] + y0
 
+    # Only pick roots that have negligable imaginary value
     x_real = x.real[abs(x.imag) < 1e-5]
     y_real = y.real[abs(x.imag) < 1e-5]
 
-    return np.vstack((x_real, y_real))
+    return np.vstack((x_real, y_real)).T
 
 
 def find_intersection_points_centered(line_coeffs, ellipse_params):
+    """
+    Solve quadratic function found here to get intersection of line and ellipse:
+    https://www.emathzone.com/tutorials/geometry/intersection-of-line-and-ellipse.html
+    """
     line = np.poly1d(line_coeffs)
 
     ap, bp = ellipse_params[2:4]
