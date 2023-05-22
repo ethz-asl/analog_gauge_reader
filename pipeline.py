@@ -175,6 +175,7 @@ def process_image(img_path, detection_model_path, key_point_model,
     try:
         ellipse_params = cart_to_pol(coeffs)
     except ValueError:
+        logging.error("Ellipse parameters not an ellipse.")
         errors[constants.NOT_AN_ELLIPSE_ERROR_KEY] = True
         result.append({constants.READING_KEY: constants.FAILED})
         write_files(result, result_full, errors, run_path, eval_mode)
@@ -243,6 +244,7 @@ def process_image(img_path, detection_model_path, key_point_model,
         needle_mask_x, needle_mask_y = segment_gauge_needle(
             cropped_img, segmentation_model)
     except AttributeError:
+        logging.error("Segmentation failed, no needle found")
         errors[constants.SEGMENTATION_FAILED_KEY] = True
         result.append({constants.READING_KEY: constants.FAILED})
         write_files(result, result_full, errors, run_path, eval_mode)
@@ -297,6 +299,13 @@ def process_image(img_path, detection_model_path, key_point_model,
     point_needle_ellipse = get_line_ellipse_point(
         needle_line_coeffs, (needle_line_start_x, needle_line_end_x),
         ellipse_params)
+
+    if point_needle_ellipse.shape[0] == 0:
+        logging.error("Needle line and ellipse do not intersect!")
+        errors[constants.OCR_NONE_DETECTED_KEY] = True
+        result.append({constants.READING_KEY: constants.FAILED})
+        write_files(result, result_full, errors, run_path, eval_mode)
+        return
 
     if debug:
         plotter.plot_ellipse(point_needle_ellipse.reshape(1, 2),
