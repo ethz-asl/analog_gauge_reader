@@ -15,15 +15,11 @@ def detection_gauge_face(img, model_path='best.pt'):
     # get list of detected boxes, already sorted by confidence
     boxes = results[0].boxes
 
-    gauge_face_box = None
+    # get highest confidence box which is of a gauge face
+    gauge_face_box = boxes[0]
 
-    # get first box which is of a gauge face
+    box_list = []
     for box in boxes:
-        if box.cls == 0:
-            gauge_face_box = box
-            break
+        box_list.append(box.xyxy[0].int())
 
-    if gauge_face_box is None:
-        raise Exception('No gauge face detected in image.')
-
-    return gauge_face_box.xyxy[0].int(), boxes
+    return gauge_face_box.xyxy[0].int(), box_list

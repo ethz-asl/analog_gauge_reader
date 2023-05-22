@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import cv2
 from PIL import Image
 
+# pylint: disable=no-member
+from evaluation import constants
 from geometry.ellipse import get_ellipse_pts, get_point_from_angle
 
 RUN_PATH = 'run'
@@ -21,7 +23,7 @@ class Plotter:
 
     def save_img(self):
         im = Image.fromarray(self.image)
-        path = os.path.join(self.run_path, "original_image.jpg")
+        path = os.path.join(self.run_path, constants.ORIGINAL_IMG_FILE_NAME)
         im.save(path)
 
     def plot_image(self, title):
@@ -37,37 +39,43 @@ class Plotter:
         path = os.path.join(self.run_path, "ocr_visualization_results.jpg")
         plt.savefig(path)
 
-    def plot_bounding_box_img(self, boxes):
+    def plot_bounding_box_img(self, boxes, ann_boxes=None):
         """
         plot detected bounding boxes. boxes is the result of the yolov8 detection
         :param img: image to draw bounding boxes on
         :param boxes: list of bounding boxes
         """
         img = np.copy(self.image)
-        for box in boxes:
-            bbox = box.xyxy[0].int()
+        for bbox in boxes:
             start_point = (int(bbox[0]), int(bbox[1]))
             end_point = (int(bbox[2]), int(bbox[3]))
 
-            color_face = (0, 255, 0)
-            color_needle = (255, 0, 0)
-            if box.cls == 0:
-                color = color_face
-            else:
-                color = color_needle
+            color = (0, 255, 0)
 
             img = cv2.rectangle(img,
                                 start_point,
                                 end_point,
                                 color=color,
-                                thickness=5)
+                                thickness=3)
+
+        if ann_boxes is not None:
+            for bbox in ann_boxes:
+                start_point = (int(bbox[0]), int(bbox[1]))
+                end_point = (int(bbox[2]), int(bbox[3]))
+
+                color = (0, 0, 255)
+
+                img = cv2.rectangle(img,
+                                    start_point,
+                                    end_point,
+                                    color=color,
+                                    thickness=3)
 
         plt.figure()
         plt.imshow(img)
 
         path = os.path.join(self.run_path, "bbox_results.jpg")
         plt.savefig(path)
-        # plt.show()
 
     def plot_test_point(self, point, title):
         plt.figure(figsize=(12, 8))

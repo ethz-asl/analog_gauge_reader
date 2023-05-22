@@ -18,6 +18,7 @@ from geometry.angle_converter import AngleConverter
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line, cut_off_line
 # pylint: disable=no-name-in-module
+# pylint: disable=no-member
 from evaluation import constants
 
 OCR_THRESHOLD = 0.7
@@ -67,9 +68,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     result = []
     errors = {}
-
-    if eval_mode:
-        result_full = {}
+    result_full = {}
 
     logging.info("Start processing image at path %s", img_path)
 
@@ -137,14 +136,20 @@ def process_image(img_path, detection_model_path, key_point_model,
     end_point = key_point_list[2]
 
     if eval_mode:
-        result_full[constants.KEYPOINT_START_KEY] = {
-            'x': start_point[0][0],
-            'y': start_point[0][1]
-        }
-        result_full[constants.KEYPOINT_END_KEY] = {
-            'x': end_point[0][0],
-            'y': end_point[0][1]
-        }
+        if start_point.shape == (1, 2):
+            result_full[constants.KEYPOINT_START_KEY] = {
+                'x': start_point[0][0],
+                'y': start_point[0][1]
+            }
+        else:
+            result_full[constants.KEYPOINT_START_KEY] = constants.FAILED
+        if end_point.shape == (1, 2):
+            result_full[constants.KEYPOINT_END_KEY] = {
+                'x': end_point[0][0],
+                'y': end_point[0][1]
+            }
+        else:
+            result_full[constants.KEYPOINT_END_KEY] = constants.FAILED
         result_full[constants.KEYPOINT_NOTCH_KEY] = []
         for point in key_points:
             result_full[constants.KEYPOINT_NOTCH_KEY].append({
@@ -167,7 +172,13 @@ def process_image(img_path, detection_model_path, key_point_model,
     logging.info("Start ellipse fitting")
 
     coeffs = fit_ellipse(key_points[:, 0], key_points[:, 1])
-    ellipse_params = cart_to_pol(coeffs)
+    try:
+        ellipse_params = cart_to_pol(coeffs)
+    except ValueError:
+        errors[constants.NOT_AN_ELLIPSE_ERROR_KEY] = True
+        result.append({constants.READING_KEY: constants.FAILED})
+        write_files(result, result_full, errors, run_path, eval_mode)
+        return
 
     ellipse_error = get_ellipse_error(key_points, ellipse_params)
     errors["Ellipse fit error"] = ellipse_error
@@ -228,8 +239,15 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Start segmentation")
 
-    needle_mask_x, needle_mask_y = segment_gauge_needle(
-        cropped_img, segmentation_model)
+    try:
+        needle_mask_x, needle_mask_y = segment_gauge_needle(
+            cropped_img, segmentation_model)
+    except AttributeError:
+        errors[constants.SEGMENTATION_FAILED_KEY] = True
+        result.append({constants.READING_KEY: constants.FAILED})
+        write_files(result, result_full, errors, run_path, eval_mode)
+        return
+
     needle_line_coeffs, needle_error = get_fitted_line(needle_mask_x,
                                                        needle_mask_y)
     needle_line_start_x, needle_line_end_x = get_start_end_line(needle_mask_x)
@@ -261,7 +279,7 @@ def process_image(img_path, detection_model_path, key_point_model,
         logging.error("Didn't find any numbers with ocr")
         errors[constants.OCR_NONE_DETECTED_KEY] = True
         result.append({constants.READING_KEY: constants.FAILED})
-        write_files(result, errors, run_path)
+        write_files(result, result_full, errors, run_path, eval_mode)
         return
     if len(number_labels) == 1:
         logging.warning("Only found 1 number with ocr")
@@ -290,9 +308,8 @@ def process_image(img_path, detection_model_path, key_point_model,
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
 
     # Find bottom point to set there the zero for wrap around
-    if WRAP_AROUND_FIX and start_point.shape == (1,
-                                                 2) and end_point.shape == (1,
-                                                                            2):
+    if WRAP_AROUND_FIX and start_point.shape == (1, 2) \
+        and end_point.shape == (1, 2):
         theta_start = get_polar_angle(start_point.flatten(), ellipse_params)
         theta_end = get_polar_angle(end_point.flatten(), ellipse_params)
         theta_zero = get_theta_middle(theta_start, theta_end)
@@ -336,20 +353,20 @@ def process_image(img_path, detection_model_path, key_point_model,
                                            round(reading, 1), ellipse_params)
 
     # ------------------Write result to file-------------------------
-    write_files(result, errors, run_path)
-
-    if eval_mode:
-        result_full_path = os.path.join(run_path,
-                                        constants.RESULT_FULL_FILE_NAME)
-        write_json_file(result_full_path, result_full)
+    write_files(result, result_full, errors, run_path, eval_mode)
 
 
-def write_files(result, errors, run_path):
+def write_files(result, result_full, errors, run_path, eval_mode):
     result_path = os.path.join(run_path, constants.RESULT_FILE_NAME)
     write_json_file(result_path, result)
 
     error_path = os.path.join(run_path, constants.ERROR_FILE_NAME)
     write_json_file(error_path, errors)
+
+    if eval_mode:
+        result_full_path = os.path.join(run_path,
+                                        constants.RESULT_FULL_FILE_NAME)
+        write_json_file(result_full_path, result_full)
 
 
 def write_json_file(filename, dictionary):
