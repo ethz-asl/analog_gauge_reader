@@ -393,7 +393,7 @@ def main():
     segmentation_model = args.segmentation_model
     base_path = args.base_path
 
-    time_str = time.strftime("%Y%m%d%H%M")
+    time_str = time.strftime("%Y%m%d%H%M%S")
     base_path = os.path.join(base_path, RUN_PATH + '_' + time_str)
     os.makedirs(base_path)
 
@@ -437,6 +437,10 @@ def main():
                 err_msg = f"Unexpected {err=}, {type(err)=}"
                 print(err_msg)
                 logging.error(err_msg)
+
+    else:
+        print("Error: input file or directory does not exist.")
+        logging.error("input file or directory does not exist.")
 
 
 def read_args():
