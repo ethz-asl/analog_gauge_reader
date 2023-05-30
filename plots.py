@@ -283,3 +283,26 @@ class Plotter:
         path = os.path.join(self.run_path, "heatmaps_results.jpg")
         plt.savefig(path)
         # plt.show()
+
+    def plot_linear_fit(self, ocr_numbers, needle, line):
+        plt.figure()
+
+        x = [0, 2 * np.pi]
+
+        plt.scatter(ocr_numbers[:, 0],
+                    ocr_numbers[:, 1],
+                    color='orange',
+                    label='OCR_readings')
+        plt.plot(x, line(x), color='blue', label='Fitted Line')
+        plt.scatter(needle[0], needle[1], color='red', label='needle_point')
+
+        # Add labels and title
+        plt.xlabel('angle on ellipse')
+        plt.ylabel('reading on gauge')
+
+        # Add legend
+        plt.legend()
+
+        # Show the plot
+        path = os.path.join(self.run_path, "reading_line_fit.jpg")
+        plt.savefig(path)

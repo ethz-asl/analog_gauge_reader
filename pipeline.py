@@ -360,6 +360,9 @@ def process_image(img_path, detection_model_path, key_point_model,
     result.append({constants.READING_KEY: reading})
 
     if debug:
+        plotter.plot_linear_fit(angle_number_arr, (needle_angle_conv, reading),
+                                reading_line)
+
         print(f"Final reading is: {reading}")
         plotter.plot_final_reading_ellipse([], point_needle_ellipse,
                                            round(reading, 1), ellipse_params)
