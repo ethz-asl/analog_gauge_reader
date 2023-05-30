@@ -306,3 +306,33 @@ class Plotter:
         # Show the plot
         path = os.path.join(self.run_path, "reading_line_fit.jpg")
         plt.savefig(path)
+
+    def plot_linear_fit_ransac(self, ocr_numbers, needle, line, inlier_mask,
+                               outlier_mask):
+        plt.figure()
+
+        line_x = [0, 2 * np.pi]
+        line_y = line(line_x)
+
+        plt.scatter(ocr_numbers[:, 0][inlier_mask],
+                    ocr_numbers[:, 1][inlier_mask],
+                    color='orange',
+                    label='Inlier ocr')
+
+        plt.scatter(ocr_numbers[:, 0][outlier_mask],
+                    ocr_numbers[:, 1][outlier_mask],
+                    color='gold',
+                    label='Outlier ocr')
+        plt.plot(line_x, line_y, color='royalblue', label='Fitted Line')
+        plt.scatter(needle[0], needle[1], color='red', label='needle_point')
+
+        # Add labels and title
+        plt.xlabel('angle on ellipse')
+        plt.ylabel('reading on gauge')
+
+        # Add legend
+        plt.legend()
+
+        # Show the plot
+        path = os.path.join(self.run_path, "reading_line_fit.jpg")
+        plt.savefig(path)

@@ -14,7 +14,8 @@ from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
 from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
     get_point_from_angle, get_polar_angle, get_theta_middle, get_ellipse_error
-from geometry.angle_converter import AngleConverter
+from angle_reading_fit.angle_converter import AngleConverter
+from angle_reading_fit.line_fit import line_fit, line_fit_ransac
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line, cut_off_line
 # pylint: disable=no-name-in-module
@@ -26,6 +27,7 @@ RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
 WRAP_AROUND_FIX = True
+RANSAC = True
 
 
 def crop_image(img, box):
@@ -342,14 +344,19 @@ def process_image(img_path, detection_model_path, key_point_model,
             (angle_converter.convert_angle(number.theta), number.number))
 
     angle_number_arr = np.array(angle_number_list)
-    reading_line_coeff = np.polyfit(angle_number_arr[:, 0],
-                                    angle_number_arr[:, 1], 1)
-    reading_line = np.poly1d(reading_line_coeff)
 
+    if RANSAC:
+        reading_line_coeff, inlier_mask, outlier_mask = line_fit_ransac(
+            angle_number_arr[:, 0], angle_number_arr[:, 1])
+    else:
+        reading_line_coeff = line_fit(angle_number_arr[:, 0],
+                                      angle_number_arr[:, 1])
+
+    reading_line = np.poly1d(reading_line_coeff)
     reading_line_res = np.sum(
         abs(
             np.polyval(reading_line_coeff, angle_number_arr[:, 0]) -
-            angle_number_arr[:, 1]))
+            angle_number_arr[:, 0]))
     reading_line_mean_err = reading_line_res / len(angle_number_arr)
     errors["Mean residual on fitted angle line"] = reading_line_mean_err
 
@@ -360,8 +367,14 @@ def process_image(img_path, detection_model_path, key_point_model,
     result.append({constants.READING_KEY: reading})
 
     if debug:
-        plotter.plot_linear_fit(angle_number_arr, (needle_angle_conv, reading),
-                                reading_line)
+        if RANSAC:
+            plotter.plot_linear_fit_ransac(angle_number_arr,
+                                           (needle_angle_conv, reading),
+                                           reading_line, inlier_mask,
+                                           outlier_mask)
+        else:
+            plotter.plot_linear_fit(angle_number_arr,
+                                    (needle_angle_conv, reading), reading_line)
 
         print(f"Final reading is: {reading}")
         plotter.plot_final_reading_ellipse([], point_needle_ellipse,
