@@ -2,10 +2,29 @@ import argparse
 import json
 import os
 
+import numpy as np
+from PIL import Image
+
 import constants
+from eval_plots import EvalPlotter
+
+
+def convert_bbox_annotation(single_bbox_dict, img_width, img_height):
+    single_bbox_dict['x'] *= img_width / 100
+    single_bbox_dict['y'] *= img_height / 100
+    single_bbox_dict['width'] *= img_width / 100
+    single_bbox_dict['height'] *= img_height / 100
+
+
+def convert_keypoint_annotation(single_bbox_dict, img_width, img_height):
+    single_bbox_dict['x'] *= img_width / 100
+    single_bbox_dict['y'] *= img_height / 100
 
 
 def get_annotations_bbox(data):
+    """
+    Function to extract annotation from format of label-studio
+    """
 
     annotation_dict = {}
 
@@ -38,26 +57,26 @@ def get_annotations_bbox(data):
             assert img_width == annotation['original_width'] and \
                     img_height == annotation['original_height']
 
+            single_bbox_dict = {
+                k: annotation['value'][k]
+                for k in ('x', 'y', 'width', 'height')
+            }
+            convert_bbox_annotation(single_bbox_dict, img_width, img_height)
+
             if annotation['value']['rectanglelabels'][
                     0] == constants.OCR_NUM_KEY:
-                bbox_annotations[constants.OCR_NUM_KEY].append({
-                    k: annotation['value'][k]
-                    for k in ('x', 'y', 'width', 'height')
-                })
+                bbox_annotations[constants.OCR_NUM_KEY].append(
+                    single_bbox_dict)
 
             if annotation['value']['rectanglelabels'][
                     0] == constants.OCR_UNIT_KEY:
-                bbox_annotations[constants.OCR_UNIT_KEY].append({
-                    k: annotation['value'][k]
-                    for k in ('x', 'y', 'width', 'height')
-                })
+                bbox_annotations[constants.OCR_UNIT_KEY].append(
+                    single_bbox_dict)
 
             if annotation['value']['rectanglelabels'][
                     0] == constants.GAUGE_DET_KEY:
-                bbox_annotations[constants.GAUGE_DET_KEY].append({
-                    k: annotation['value'][k]
-                    for k in ('x', 'y', 'width', 'height')
-                })
+                bbox_annotations[constants.GAUGE_DET_KEY].append(
+                    single_bbox_dict)
 
         annotation_dict[image_name] = bbox_annotations
 
@@ -65,6 +84,9 @@ def get_annotations_bbox(data):
 
 
 def get_annotations_keypoint(data):
+    """
+    Function to extract annotation from format of label-studio
+    """
 
     annotation_dict = {}
 
@@ -97,21 +119,24 @@ def get_annotations_keypoint(data):
             assert img_width == annotation['original_width'] and \
                     img_height == annotation['original_height']
 
+            single_keypoint_dict = {
+                k: annotation['value'][k]
+                for k in ('x', 'y')
+            }
+            convert_keypoint_annotation(single_keypoint_dict, img_width,
+                                        img_height)
             keypoint_annotations[constants.KEYPOINT_NOTCH_KEY].append(
-                {k: annotation['value'][k]
-                 for k in ('x', 'y')})
+                single_keypoint_dict)
 
             if annotation['value']['keypointlabels'][
                     0] == constants.KEYPOINT_START_KEY:
                 keypoint_annotations[constants.KEYPOINT_START_KEY].append(
-                    {k: annotation['value'][k]
-                     for k in ('x', 'y')})
+                    single_keypoint_dict)
 
             if annotation['value']['keypointlabels'][
                     0] == constants.KEYPOINT_END_KEY:
                 keypoint_annotations[constants.KEYPOINT_END_KEY].append(
-                    {k: annotation['value'][k]
-                     for k in ('x', 'y')})
+                    single_keypoint_dict)
 
         annotation_dict[image_name] = keypoint_annotations
 
@@ -119,6 +144,10 @@ def get_annotations_keypoint(data):
 
 
 def get_annotations_from_json(bbox_path, key_point_path):
+    """
+    returns annotation dict with each image name as a key.
+    For each we have another dict, with a key for each result of the different stages.
+    """
     with open(bbox_path, 'r') as file:
         bbox_true_dict = json.load(file)
     with open(key_point_path, 'r') as file:
@@ -180,6 +209,8 @@ def get_predictions(run_path):
             if os.path.isfile(result_file):
                 with open(result_file, 'r') as file:
                     result_dict = json.load(file)
+                    result_dict[constants.ORIGINAL_IMG_KEY] = os.path.join(
+                        subdirectory, constants.ORIGINAL_IMG_FILE_NAME)
                     prediction_results[subdir] = result_dict
 
             else:
@@ -220,12 +251,49 @@ def bb_intersection_over_union(boxA, boxB):
     return iou
 
 
+def compare_gauge_detecions(annotation_dict, prediction_dict, plotter):
+    plotter.plot_bounding_box_img([prediction_dict], annotation_dict)
+
+
+def compare_ocr_numbers():
+    pass
+
+
+def compare_key_points():
+    pass
+
+
 def main(bbox_path, key_point_path, run_path, debug):
 
     annotation_dict = get_annotations_from_json(bbox_path, key_point_path)
     predictions_dict = get_predictions(run_path)
 
-    print(predictions_dict)
+    assert set(predictions_dict.keys()) == set(annotation_dict.keys())
+
+    for image_name in annotation_dict:
+        # get corresponding image for plots
+        image_path = predictions_dict[image_name][constants.ORIGINAL_IMG_KEY]
+        image = Image.open(image_path).convert("RGB")
+        image = np.asarray(image)
+
+        eval_path = os.path.join(run_path, image_name, "eval")
+        os.makedirs(eval_path, exist_ok=True)
+        plotter = EvalPlotter(eval_path, image)
+
+        # compare gauge detection
+        compare_gauge_detecions(
+            annotation_dict[image_name][constants.GAUGE_DET_KEY],
+            predictions_dict[image_name][constants.GAUGE_DET_KEY], plotter)
+
+        # compare OCR number detection
+
+        # compare OCR unit detection
+
+        # compare key points
+
+        # compare needle segmentations
+
+        # maybe compare line fit and ellipse fit
 
     if debug:
         outfile_path = os.path.join(run_path, "true_annotations.json")

@@ -2,12 +2,16 @@ import os
 from matplotlib.patches import Polygon
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
+
 import cv2
 from PIL import Image
 
 # pylint: disable=no-member
 from evaluation import constants
 from geometry.ellipse import get_ellipse_pts, get_point_from_angle
+
+matplotlib.use('Agg')
 
 RUN_PATH = 'run'
 
@@ -39,7 +43,7 @@ class Plotter:
         path = os.path.join(self.run_path, "ocr_visualization_results.jpg")
         plt.savefig(path)
 
-    def plot_bounding_box_img(self, boxes, ann_boxes=None):
+    def plot_bounding_box_img(self, boxes):
         """
         plot detected bounding boxes. boxes is the result of the yolov8 detection
         :param img: image to draw bounding boxes on
@@ -57,19 +61,6 @@ class Plotter:
                                 end_point,
                                 color=color,
                                 thickness=3)
-
-        if ann_boxes is not None:
-            for bbox in ann_boxes:
-                start_point = (int(bbox[0]), int(bbox[1]))
-                end_point = (int(bbox[2]), int(bbox[3]))
-
-                color = (0, 0, 255)
-
-                img = cv2.rectangle(img,
-                                    start_point,
-                                    end_point,
-                                    color=color,
-                                    thickness=3)
 
         plt.figure()
         plt.imshow(img)
