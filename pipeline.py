@@ -207,7 +207,10 @@ def process_image(img_path, detection_model_path, key_point_model,
     number_labels = []
     for reading in ocr_readings:
         if reading.is_number() and reading.confidence > OCR_THRESHOLD:
-            number_labels.append(reading)
+            # Add heuristics to filter out serial numbers
+            if not (abs(reading.number) > 10000 or
+                    (abs(reading.number) > 100 and reading.number % 10 != 0)):
+                number_labels.append(reading)
 
     mean_number_ocr_conf = 0
     for number_label in number_labels:
