@@ -14,7 +14,13 @@ class EvalPlotter:
     def set_image(self, image):
         self.image = image
 
-    def plot_bounding_box_img(self, pred_boxes, ann_boxes):
+    def plot_image(self, title):
+        plt.figure()
+        plt.imshow(self.image)
+        path = os.path.join(self.run_path, f"image_{title}.jpg")
+        plt.savefig(path)
+
+    def plot_bounding_box_img(self, ann_boxes, pred_boxes, title):
 
         plt.figure()
 
@@ -47,5 +53,5 @@ class EvalPlotter:
         red_patch = patches.Patch(color='red', label='Annotations')
         plt.legend(handles=[green_patch, red_patch])
 
-        path = os.path.join(self.run_path, "bbox_results.jpg")
+        path = os.path.join(self.run_path, f"{title}_bbox_results.jpg")
         plt.savefig(path)

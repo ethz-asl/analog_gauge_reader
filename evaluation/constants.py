@@ -35,6 +35,9 @@ N_FAILED_NO_ELLIPSE = 'number of examples, where ellipse has faulty parameters'
 N_FAILED_SEG = 'number of examples, where needle segmenatation failed'
 N_FAILED_ELLIPSE_LINE_NO_INTERSECT = 'number of examples, where ellipse has faulty parameters'
 
+GAUGE_IOU_KEY = 'IoU of gauge detection and truth'
+N_OCR_DETECTED = 'N annotated bbox of OCR has IoU at least 0.5 with predicted'
+
 # Other constants-------------------------------------------------------
 FAILED = 'Failed'
 

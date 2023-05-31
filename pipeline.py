@@ -30,7 +30,7 @@ WRAP_AROUND_FIX = True
 RANSAC = True
 
 
-def crop_image(img, box):
+def crop_image(img, box, flag=False):
     """
     crop image
     :param img: orignal image
@@ -62,6 +62,9 @@ def crop_image(img, box):
                                  right,
                                  cv2.BORDER_CONSTANT,
                                  value=pad_color)
+
+    if flag:
+        return new_img, (top, bottom, left, right)
     return new_img
 
 
