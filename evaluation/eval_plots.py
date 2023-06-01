@@ -55,3 +55,30 @@ class EvalPlotter:
 
         path = os.path.join(self.run_path, f"{title}_bbox_results.jpg")
         plt.savefig(path)
+
+    def plot_key_points(self, ann_keypoints, pred_keypoints, title):
+        plt.figure()
+
+        # pylint: disable-next=unused-variable
+        fig, ax = plt.subplots(1)
+
+        # Display the image
+        ax.imshow(self.image)
+
+        ax.scatter(ann_keypoints[:, 0],
+                   ann_keypoints[:, 1],
+                   s=50,
+                   c='red',
+                   marker='x')
+        ax.scatter(pred_keypoints[:, 0],
+                   pred_keypoints[:, 1],
+                   s=50,
+                   c='green',
+                   marker='x')
+
+        green_patch = patches.Patch(color='green', label='Predictions')
+        red_patch = patches.Patch(color='red', label='Annotations')
+        plt.legend(handles=[green_patch, red_patch])
+
+        path = os.path.join(self.run_path, f"{title}_keypoint_results.jpg")
+        plt.savefig(path)

@@ -16,6 +16,7 @@ sys.path.append(parent_dir)
 
 # pylint: disable=wrong-import-position
 from pipeline import crop_image, RESOLUTION
+from key_point_detection.key_point_extraction import key_point_metrics
 
 IOU_THRESHOLD = 0.5
 
@@ -279,11 +280,44 @@ def compare_ocr_numbers(annotation, prediction, plotter, eval_dict):
             iou_max = max(iou, iou_max)
         if iou_max > IOU_THRESHOLD:
             n_ocr_detected += 1
-    eval_dict[constants.N_OCR_DETECTED] = n_ocr_detected
+    eval_dict[constants.N_OCR_DETECTED_KEY] = n_ocr_detected
 
 
-def compare_key_points():
-    pass
+def compare_notches(annotation_list, prediction_list, plotter, eval_dict):
+    #bring points to right format for key point metrics function.
+    #need 2d array for this
+    annotation = []
+    for annotation_dict in annotation_list:
+        annotation.append([annotation_dict['x'], annotation_dict['y']])
+    predicted = []
+    for prediction_dict in prediction_list:
+        predicted.append([prediction_dict['x'], prediction_dict['y']])
+    annotation = np.array(annotation)
+    predicted = np.array(predicted)
+
+    # plot keypoints
+    plotter.plot_key_points(annotation, predicted, 'notches')
+
+    metrics_dict = key_point_metrics(predicted, annotation)
+    eval_dict[constants.NOTCHES_METRICS_KEY] = metrics_dict
+
+
+def compare_single_keypoint(annotation, prediction, plotter, eval_dict,
+                            is_start):
+    #bring points to right format for key point metrics function.
+    #need 2d array for this
+
+    annotation = np.array([[annotation['x'], annotation['y']]])
+    predicted = np.array([[prediction['x'], prediction['y']]])
+
+    metrics_dict = key_point_metrics(predicted, annotation)
+
+    if is_start:
+        plotter.plot_key_points(annotation, predicted, 'start notch')
+        eval_dict[constants.START_METRICS_KEY] = metrics_dict
+    else:
+        plotter.plot_key_points(annotation, predicted, 'end notch')
+        eval_dict[constants.END_METRICS_KEY] = metrics_dict
 
 
 def is_point_inside(point, crop_box):
@@ -396,9 +430,20 @@ def main(bbox_path, key_point_path, run_path, debug):
                             prediction_dict[constants.OCR_NUM_KEY], plotter,
                             eval_dict)
 
-        # compare OCR unit detection
-
         # compare key points
+        compare_notches(annotation_dict[constants.KEYPOINT_NOTCH_KEY],
+                        prediction_dict[constants.KEYPOINT_NOTCH_KEY], plotter,
+                        eval_dict)
+
+        compare_single_keypoint(annotation_dict[constants.KEYPOINT_START_KEY],
+                                prediction_dict[constants.KEYPOINT_START_KEY],
+                                plotter, eval_dict, True)
+
+        compare_single_keypoint(annotation_dict[constants.KEYPOINT_END_KEY],
+                                prediction_dict[constants.KEYPOINT_END_KEY],
+                                plotter, eval_dict, False)
+
+        # compare OCR unit detection
 
         # compare needle segmentations
 
