@@ -240,19 +240,19 @@ def bb_intersection_over_union(boxA, boxB):
     adapted from
     https://pyimagesearch.com/2016/11/07/intersection-over-union-iou-for-object-detection/
     """
-    # determine the (x, y)-coordinates of the intersection rectangle
+    # coordinates of the area of intersection.
     xA = max(boxA['x'], boxB['x'])
     yA = max(boxA['y'], boxB['y'])
     xB = min(boxA['x'] + boxA['width'], boxB['x'] + boxB['width'])
     yB = min(boxA['y'] + boxA['height'], boxB['y'] + boxB['height'])
+
     # compute the area of intersection rectangle
     interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
+
     # compute the area of both the prediction and ground-truth
     # rectangles
-    boxAArea = (boxA['width'] - boxA['x'] + 1) * (boxA['height'] - boxA['y'] +
-                                                  1)
-    boxBArea = (boxB['width'] - boxB['x'] + 1) * (boxB['height'] - boxB['y'] +
-                                                  1)
+    boxAArea = (boxA['width'] + 1) * (boxA['height'] + 1)
+    boxBArea = (boxB['width'] + 1) * (boxB['height'] + 1)
     # compute the intersection over union by taking the intersection
     # area and dividing it by the sum of prediction + ground-truth
     # areas - the interesection area
