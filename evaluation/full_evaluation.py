@@ -304,9 +304,12 @@ def compare_notches(annotation_list, prediction_list, plotter, eval_dict):
 
 def compare_single_keypoint(annotation, prediction, plotter, eval_dict,
                             is_start):
+    """
+    this is for start and end notch evaluation. if is_start then start, else end
+    """
+
     #bring points to right format for key point metrics function.
     #need 2d array for this
-
     annotation = np.array([[annotation['x'], annotation['y']]])
     predicted = np.array([[prediction['x'], prediction['y']]])
 
@@ -370,12 +373,14 @@ def rescale_bbox(bbox, crop_box, border):
         bbox['height'] *= rescale_resolution[0] / box_width
 
 
-def main(bbox_path, key_point_path, run_path, debug):
+def main(bbox_path, key_point_path, run_path):
 
     annotations_dict = get_annotations_from_json(bbox_path, key_point_path)
     predictions_dict = get_predictions(run_path)
 
     assert set(predictions_dict.keys()) == set(annotations_dict.keys())
+
+    full_eval_dict = {}
 
     for image_name in annotations_dict:
 
@@ -449,9 +454,16 @@ def main(bbox_path, key_point_path, run_path, debug):
 
         # maybe compare line fit and ellipse fit
 
-    if debug:
-        outfile_path = os.path.join(run_path, "true_annotations.json")
-        write_json(outfile_path, annotations_dict)
+        # Add eval dict to full
+        full_eval_dict[image_name] = eval_dict
+
+        # Save eval_dict to image specific folder
+        outfile_path = os.path.join(eval_path, "evaluation.json")
+        write_json(outfile_path, eval_dict)
+
+    # Save full eval dict to json
+    outfile_path = os.path.join(run_path, "full_evaluation.json")
+    write_json(outfile_path, full_eval_dict)
 
 
 def read_args():
@@ -468,11 +480,9 @@ def read_args():
                         type=str,
                         required=True,
                         help="Path to run folder")
-    parser.add_argument('--debug', action='store_true')
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = read_args()
-    main(args.bbox_true_path, args.keypoint_true_path, args.run_path,
-         args.debug)
+    main(args.bbox_true_path, args.keypoint_true_path, args.run_path)
