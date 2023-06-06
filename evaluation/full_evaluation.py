@@ -29,12 +29,6 @@ def convert_bbox_annotation(single_bbox_dict, img_width, img_height):
     single_bbox_dict['height'] *= img_height / 100
 
 
-# label-studio annotations are always in scale 0,100 so need to rescale
-def convert_keypoint_annotation(single_bbox_dict, img_width, img_height):
-    single_bbox_dict['x'] *= img_width / 100
-    single_bbox_dict['y'] *= img_height / 100
-
-
 def get_annotations_bbox(data):
     """
     Function to extract annotation from format of label-studio
@@ -91,6 +85,12 @@ def get_annotations_bbox(data):
         annotation_dict[image_name] = bbox_annotations
 
     return annotation_dict
+
+
+# label-studio annotations are always in scale 0,100 so need to rescale
+def convert_keypoint_annotation(single_bbox_dict, img_width, img_height):
+    single_bbox_dict['x'] *= img_width / 100
+    single_bbox_dict['y'] *= img_height / 100
 
 
 def get_annotations_keypoint(data):
@@ -151,7 +151,65 @@ def get_annotations_keypoint(data):
     return annotation_dict
 
 
-def get_annotations_from_json(bbox_path, key_point_path):
+def polygon_to_mask(polygon, img_shape):
+    mask = np.zeros(img_shape)
+    cv2.fillPoly(mask, [np.int32(polygon)], 1)
+    return mask
+
+
+def convert_segmenation_annotation(polygon, img_width, img_height):
+    for point in polygon:
+        point[0] *= img_width / 100
+        point[1] *= img_height / 100
+    return polygon_to_mask(polygon, (img_width, img_height))
+
+
+def get_annotations_segmenatation(data):
+    """
+    Function to extract annotation from format of label-studio
+    """
+
+    annotation_dict = {}
+
+    for data_point in data:
+
+        segmentation_annotation = {}
+        # Get image name. We have image name in format :
+        # /data/upload/1/222ae49e-1_cropped_000001_jpg.rf.c7410b0b01b2bc3a6cdff656618a3015.jpg
+        # get rid of everything before the '-'
+        idx = data_point['data']['image'].find('-') + 1
+        image_name = data_point['data']['image'][idx:]
+
+        img_width = data_point['annotations'][0]['result'][0]['original_width']
+        img_height = data_point['annotations'][0]['result'][0][
+            'original_height']
+
+        segmentation_annotation[constants.IMG_SIZE_KEY] = {
+            'width': img_width,
+            'height': img_height
+        }
+
+        segmentation_annotation[constants.NEEDLE_MASK_KEY] = []
+
+        for annotation in data_point['annotations'][0]['result']:
+
+            # Image original size saved for each annotation individually.
+            # check that all are the same
+            assert img_width == annotation['original_width'] and \
+                    img_height == annotation['original_height']
+
+            segmenation_annotation = annotation['value']['points']
+            segmentation_mask = convert_segmenation_annotation(
+                segmenation_annotation, img_width, img_height)
+            segmentation_annotation[constants.NEEDLE_MASK_KEY].append(
+                segmentation_mask)
+
+        annotation_dict[image_name] = segmentation_annotation
+
+    return annotation_dict
+
+
+def get_annotations_from_json(bbox_path, key_point_path, segmentation_path):
     """
     returns annotation dict with each image name as a key.
     For each we have another dict, with a key for each result of the different stages.
@@ -160,11 +218,15 @@ def get_annotations_from_json(bbox_path, key_point_path):
         bbox_true_dict = json.load(file)
     with open(key_point_path, 'r') as file:
         keypoint_true_dict = json.load(file)
+    with open(segmentation_path, 'r') as file:
+        seg_true_dict = json.load(file)
 
     bbox_dict = get_annotations_bbox(bbox_true_dict)
     key_point_dict = get_annotations_keypoint(keypoint_true_dict)
+    seg_dict = get_annotations_segmenatation(seg_true_dict)
 
     assert set(bbox_dict.keys()) == set(key_point_dict.keys())
+    assert set(bbox_dict.keys()) == set(seg_dict.keys())
 
     full_annotations = {}
     for key in bbox_dict:
@@ -193,6 +255,8 @@ def get_annotations_from_json(bbox_path, key_point_path):
             key_point_dict[key][constants.KEYPOINT_START_KEY],
             constants.KEYPOINT_END_KEY:
             key_point_dict[key][constants.KEYPOINT_END_KEY],
+            constants.NEEDLE_MASK_KEY:
+            seg_dict[key][constants.NEEDLE_MASK_KEY]
         }
 
     return full_annotations
@@ -266,6 +330,50 @@ def compare_gauge_detecions(annotation, prediction, plotter, eval_dict):
                                   'gauge detection')
     iou = bb_intersection_over_union(annotation, prediction)
     eval_dict[constants.GAUGE_IOU_KEY] = iou
+
+
+def compute_mask_iou(mask1, mask2):
+    # convert to boolean arrays
+    mask1 = mask1.astype(bool)
+    mask2 = mask2.astype(bool)
+
+    # formula for intersection over union
+    intersection = np.logical_and(mask1, mask2)
+    union = np.logical_or(mask1, mask2)
+
+    iou = np.sum(intersection) / np.sum(union)
+    return iou
+
+
+def create_mask(x_coords, y_coords, shape):
+    mask = np.zeros(shape, dtype=np.int32)
+    mask[y_coords, x_coords] = 1
+    return mask
+
+
+def compare_needle_segmentations(annotation, prediction, plotter, eval_dict):
+    """
+    annotation has format of 2d numpy array with 0,1
+    prediction is two lists, x_coord_list and y_coord_list
+    First convert predictions to same format as annotations.
+    """
+    annotation_mask = annotation[0]
+
+    indices = np.where(annotation_mask == 1)
+    ann_x_coords = indices[1].tolist()
+    ann_y_coords = indices[0].tolist()
+
+    pred_x_coords = prediction['x']
+    pred_y_coords = prediction['y']
+    pred_mask = create_mask(pred_x_coords, pred_y_coords,
+                            annotation_mask.shape)
+
+    plotter.plot_segmentation_debug(annotation_mask, pred_mask)
+    plotter.plot_segmentation((ann_x_coords, ann_y_coords),
+                              (pred_x_coords, pred_y_coords))
+
+    iou = compute_mask_iou(annotation_mask, pred_mask)
+    eval_dict[constants.NEEDLE_IOU_KEY] = iou
 
 
 def compare_ocr_numbers(annotation, prediction, plotter, eval_dict):
@@ -373,9 +481,17 @@ def rescale_bbox(bbox, crop_box, border):
         bbox['height'] *= rescale_resolution[0] / box_width
 
 
-def main(bbox_path, key_point_path, run_path):
+def rescale_needle_segmentation(masks, crop_box):
+    mask = masks[0]
+    mask = crop_image(mask, crop_box, two_dimensional=True)
+    mask = cv2.resize(mask, dsize=RESOLUTION, interpolation=cv2.INTER_NEAREST)
+    return mask
 
-    annotations_dict = get_annotations_from_json(bbox_path, key_point_path)
+
+def main(bbox_path, key_point_path, segmentation_path, run_path):
+
+    annotations_dict = get_annotations_from_json(bbox_path, key_point_path,
+                                                 segmentation_path)
     predictions_dict = get_predictions(run_path)
 
     assert set(predictions_dict.keys()) == set(annotations_dict.keys())
@@ -429,6 +545,9 @@ def main(bbox_path, key_point_path, run_path):
                       pred_gauge_bbox, border)
         for point in annotation_dict[constants.KEYPOINT_NOTCH_KEY]:
             rescale_point(point, pred_gauge_bbox, border)
+        annotation_dict[constants.NEEDLE_MASK_KEY][0] = \
+            rescale_needle_segmentation(annotation_dict[constants.NEEDLE_MASK_KEY],
+                      pred_gauge_bbox_list)
 
         # compare OCR number detection
         compare_ocr_numbers(annotation_dict[constants.OCR_NUM_KEY],
@@ -451,6 +570,9 @@ def main(bbox_path, key_point_path, run_path):
         # compare OCR unit detection
 
         # compare needle segmentations
+        compare_needle_segmentations(
+            annotation_dict[constants.NEEDLE_MASK_KEY],
+            prediction_dict[constants.NEEDLE_MASK_KEY], plotter, eval_dict)
 
         # maybe compare line fit and ellipse fit
 
@@ -476,6 +598,10 @@ def read_args():
                         type=str,
                         required=True,
                         help="Path to json file with labels for keypoints")
+    parser.add_argument('--segmentation_true_path',
+                        type=str,
+                        required=True,
+                        help="Path to json file with labels for segmentation")
     parser.add_argument('--run_path',
                         type=str,
                         required=True,
@@ -485,4 +611,5 @@ def read_args():
 
 if __name__ == "__main__":
     args = read_args()
-    main(args.bbox_true_path, args.keypoint_true_path, args.run_path)
+    main(args.bbox_true_path, args.keypoint_true_path,
+         args.segmentation_true_path, args.run_path)

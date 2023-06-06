@@ -82,3 +82,35 @@ class EvalPlotter:
 
         path = os.path.join(self.run_path, f"{title}_keypoint_results.jpg")
         plt.savefig(path)
+
+    def plot_segmentation(self, annotation, prediction):
+        plt.figure()
+
+        # pylint: disable-next=unused-variable
+        fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+        # Display the image
+        ax1.imshow(self.image)
+        ax1.scatter(annotation[0], annotation[1], c='red')
+        ax2.imshow(self.image)
+        ax2.scatter(prediction[0], prediction[1], c='green')
+
+        green_patch = patches.Patch(color='green', label='Predictions')
+        red_patch = patches.Patch(color='red', label='Annotations')
+        plt.legend(handles=[green_patch, red_patch])
+
+        path = os.path.join(self.run_path, "needle_results.jpg")
+        plt.savefig(path)
+
+    def plot_segmentation_debug(self, annotation, prediction):
+        plt.figure()
+
+        # pylint: disable-next=unused-variable
+        fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+        # Display the image
+        ax1.imshow(annotation)
+        ax2.imshow(prediction)
+
+        path = os.path.join(self.run_path, "needle_results_debug.jpg")
+        plt.savefig(path)

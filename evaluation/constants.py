@@ -19,6 +19,7 @@ NEEDLE_ELLIPSE_NO_INTERSECT = "Needle line and ellipse do not intersect"
 IMG_SIZE_KEY = "image size"
 OCR_NUM_KEY = "OCR Numbers"
 OCR_UNIT_KEY = "OCR Unit"
+NEEDLE_MASK_KEY = "Needle segmentation mask"
 GAUGE_DET_KEY = "Gauge"
 KEYPOINT_START_KEY = "Start Notch"
 KEYPOINT_END_KEY = "End Notch"
@@ -40,6 +41,7 @@ N_OCR_DETECTED_KEY = 'N annotated bbox of OCR has IoU at least 0.5 with predicte
 NOTCHES_METRICS_KEY = 'metrics for notch detection'
 START_METRICS_KEY = 'metrics for start notch detection'
 END_METRICS_KEY = 'metrics for end notch detection'
+NEEDLE_IOU_KEY = 'IoU of needle segmentation'
 
 # Other constants-------------------------------------------------------
 FAILED = 'Failed'

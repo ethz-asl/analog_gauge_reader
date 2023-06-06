@@ -30,7 +30,7 @@ WRAP_AROUND_FIX = True
 RANSAC = True
 
 
-def crop_image(img, box, flag=False):
+def crop_image(img, box, flag=False, two_dimensional=False):
     """
     crop image
     :param img: orignal image
@@ -38,8 +38,12 @@ def crop_image(img, box, flag=False):
     :return: cropped image
     """
     img = np.copy(img)
-    cropped_img = img[box[1]:box[3],
-                      box[0]:box[2], :]  # image has format [y, x, rgb]
+    if two_dimensional:
+        cropped_img = img[box[1]:box[3],
+                          box[0]:box[2]]  # image has format [y, x]
+    else:
+        cropped_img = img[box[1]:box[3],
+                          box[0]:box[2], :]  # image has format [y, x, rgb]
 
     height = int(box[3] - box[1])
     width = int(box[2] - box[0])
@@ -257,6 +261,12 @@ def process_image(img_path, detection_model_path, key_point_model,
         result.append({constants.READING_KEY: constants.FAILED})
         write_files(result, result_full, errors, run_path, eval_mode)
         return
+
+    if eval_mode:
+        result_full[constants.NEEDLE_MASK_KEY] = {
+            'x': needle_mask_x.tolist(),
+            'y': needle_mask_y.tolist()
+        }
 
     needle_line_coeffs, needle_error = get_fitted_line(needle_mask_x,
                                                        needle_mask_y)
