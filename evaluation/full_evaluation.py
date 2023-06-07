@@ -139,12 +139,13 @@ def get_annotations_keypoint(data):
             if annotation['value']['keypointlabels'][
                     0] == constants.KEYPOINT_START_KEY:
                 keypoint_annotations[
-                    constants.KEYPOINT_START_KEY] = single_keypoint_dict
+                    constants.KEYPOINT_START_KEY] = single_keypoint_dict.copy(
+                    )
 
             if annotation['value']['keypointlabels'][
                     0] == constants.KEYPOINT_END_KEY:
                 keypoint_annotations[
-                    constants.KEYPOINT_END_KEY] = single_keypoint_dict
+                    constants.KEYPOINT_END_KEY] = single_keypoint_dict.copy()
 
         annotation_dict[image_name] = keypoint_annotations
 
@@ -161,7 +162,7 @@ def convert_segmenation_annotation(polygon, img_width, img_height):
     for point in polygon:
         point[0] *= img_width / 100
         point[1] *= img_height / 100
-    return polygon_to_mask(polygon, (img_width, img_height))
+    return polygon_to_mask(polygon, (img_height, img_width))
 
 
 def get_annotations_segmenatation(data):
@@ -459,6 +460,8 @@ def rescale_point(point, crop_box, border):
 
         point['x'] = x_shift * rescale_resolution[0] / box_width
         point['y'] = y_shift * rescale_resolution[1] / box_height
+    else:
+        print('HELP POINT NOT INSIDE BOX')
 
 
 def rescale_bbox(bbox, crop_box, border):
