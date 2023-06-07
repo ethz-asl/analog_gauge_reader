@@ -50,5 +50,5 @@ When exporting these with label-studio you get 3 json files, one for each projec
 To run the full_evaluation script execute:
 
 ```shell
-python evaluation/full_evaluation.py --bbox_true_path path/to/bbox.json --keypoint_true_path path/to/keypoint.json --segmentation_true_path path/to/seg.json ----run_path path/to/run_path
+python evaluation/full_evaluation.py --bbox_true_path path/to/bbox.json --keypoint_true_path path/to/keypoint.json --segmentation_true_path path/to/seg.json --run_path path/to/run_path
 ```
