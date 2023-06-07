@@ -91,9 +91,9 @@ class EvalPlotter:
 
         # Display the image
         ax1.imshow(self.image)
-        ax1.scatter(annotation[0], annotation[1], c='red')
+        ax1.scatter(annotation[0], annotation[1], c='red', s=0.5)
         ax2.imshow(self.image)
-        ax2.scatter(prediction[0], prediction[1], c='green')
+        ax2.scatter(prediction[0], prediction[1], c='green', s=0.5)
 
         green_patch = patches.Patch(color='green', label='Predictions')
         red_patch = patches.Patch(color='red', label='Annotations')

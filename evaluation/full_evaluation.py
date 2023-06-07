@@ -503,6 +503,10 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
         annotation_dict = annotations_dict[image_name]
         prediction_dict = predictions_dict[image_name]
 
+        if prediction_dict == constants.FAILED:
+            print("Skip failed image")
+            continue
+
         # get corresponding image for plots
         image_path = prediction_dict[constants.ORIGINAL_IMG_KEY]
         image = Image.open(image_path).convert("RGB")
@@ -549,11 +553,6 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
             rescale_needle_segmentation(annotation_dict[constants.NEEDLE_MASK_KEY],
                       pred_gauge_bbox_list)
 
-        # compare OCR number detection
-        compare_ocr_numbers(annotation_dict[constants.OCR_NUM_KEY],
-                            prediction_dict[constants.OCR_NUM_KEY], plotter,
-                            eval_dict)
-
         # compare key points
         compare_notches(annotation_dict[constants.KEYPOINT_NOTCH_KEY],
                         prediction_dict[constants.KEYPOINT_NOTCH_KEY], plotter,
@@ -567,12 +566,25 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
                                 prediction_dict[constants.KEYPOINT_END_KEY],
                                 plotter, eval_dict, False)
 
+        # compare OCR number detection
+        if prediction_dict[constants.OCR_NUM_KEY] == constants.FAILED:
+            print("Skip failed ocr comparison")
+            eval_dict[constants.OCR_NUM_KEY] = constants.FAILED
+        else:
+            compare_ocr_numbers(annotation_dict[constants.OCR_NUM_KEY],
+                                prediction_dict[constants.OCR_NUM_KEY],
+                                plotter, eval_dict)
+
         # compare OCR unit detection
 
         # compare needle segmentations
-        compare_needle_segmentations(
-            annotation_dict[constants.NEEDLE_MASK_KEY],
-            prediction_dict[constants.NEEDLE_MASK_KEY], plotter, eval_dict)
+        if prediction_dict[constants.NEEDLE_MASK_KEY] == constants.FAILED:
+            print("Skip failed needle comparison")
+            eval_dict[constants.NEEDLE_IOU_KEY] = constants.FAILED
+        else:
+            compare_needle_segmentations(
+                annotation_dict[constants.NEEDLE_MASK_KEY],
+                prediction_dict[constants.NEEDLE_MASK_KEY], plotter, eval_dict)
 
         # maybe compare line fit and ellipse fit
 
