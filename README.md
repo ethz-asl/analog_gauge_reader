@@ -47,11 +47,18 @@ conda activate gauge_reader
 ```
 
 ### install pytorch
+
+We use torch version 2.0.0.
+
 ```shell
 conda install pytorch torchvision -c pytorch
 ```
 
 ### install mmocr
+
+Refer to this page for installation <https://mmocr.readthedocs.io/en/dev-1.x/get_started/install.html>
+We use the version dev-1.x
+
 ```shell
 pip install -U openimim
 mim install mmengine
@@ -60,12 +67,20 @@ mim install mmdet
 mim install mmocr
 ```
 
+We use the following versions: mmocr 1.0.0, mmdet 3.0.0, mmcv 2.0.0, mmengine 0.7.2
+
 #### install yolov8
+
+We use ultralytics version 8.0.66
+
 ```shell
 pip install ultralytics
 ```
 
 #### install sklearn
+
+We use scikit-learn version 1.2.2
+
 ```shell
 pip install -U scikit-learn
 ```
