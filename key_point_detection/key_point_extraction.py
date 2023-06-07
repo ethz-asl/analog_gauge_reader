@@ -7,7 +7,7 @@ PCK_KEY = "Percentage of true where at least one predicted is close"
 NON_ASSIGNED_KEY = "Percentage non assigned predicted points"
 
 
-def full_key_point_extraction(heatmaps, threshold=0.4, bandwidth=20):
+def full_key_point_extraction(heatmaps, threshold=0.5, bandwidth=20):
     key_point_list = []
     for i in range(heatmaps.shape[0]):
         # middle
@@ -23,18 +23,12 @@ def full_key_point_extraction(heatmaps, threshold=0.4, bandwidth=20):
 
 
 def extract_start_end_points(heatmap, threshold):
+    # normalize heatmap to range 0, 1
+    heatmap = heatmap / np.max(heatmap)
+
     coords = np.argwhere(heatmap > threshold)
     # swap coordinates
     coords[:, [1, 0]] = coords[:, [0, 1]]
-    if coords.shape[0] == 0:
-        if threshold < 0.05:
-            print(f"No point with confidence at least {threshold} detected.")
-            return coords
-
-        new_threshold = threshold / 2
-        print(f"No point with confidence at least {threshold} detected. "
-              f"Trying threshold {new_threshold}")
-        return extract_start_end_points(heatmap, new_threshold)
 
     kmeans = KMeans(n_clusters=1, n_init=3)
     kmeans.fit(coords)
@@ -45,28 +39,14 @@ def extract_start_end_points(heatmap, threshold):
 
 
 def extract_key_points(heatmap, threshold, bandwidth):
-    """
-    threshold is minimum confidence for points to be considered in clustering.
-    increasing the threshold increases performance
-    bandwidth is bandwidth parameter of Mean shift.
-    return extracted cluster centers
-    """
+
+    # normalize heatmap to range 0, 1
+    heatmap = heatmap / np.max(heatmap)
 
     # Get pixel coordinates of pixels with value greater than 0.5
     coords = np.argwhere(heatmap > threshold)
     # swap coordinates
     coords[:, [1, 0]] = coords[:, [0, 1]]
-
-    # if none detected with given threshold
-    if coords.shape[0] == 0:
-        if threshold <= 0.1:
-            print(f"No point with confidence at least {threshold} detected.")
-            return coords
-
-        new_threshold = threshold / 2
-        print(f"No point with confidence at least {threshold} detected. "
-              f"Trying threshold {new_threshold}")
-        return extract_key_points(heatmap, new_threshold, bandwidth)
 
     # Perform mean shift clustering
     ms = MeanShift(bandwidth=bandwidth, n_jobs=-1)
