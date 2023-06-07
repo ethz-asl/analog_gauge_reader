@@ -43,7 +43,20 @@ For our experiments we enhanced the set of test images by rotatating them random
 
 ## Full evaluation
 
-First label your data set with `label-studio` <https://labelstud.io/>. For this you have to create 3 different projects, one for key points, one for bounding boxes and one for segmentation. For segmentation choose labels with polygons. The name of the labels is important and can be found in the reference examples provided.
+First label your data set with `label-studio` <https://labelstud.io/>. For this you have to create 3 different projects, one for key points, one for bounding boxes and one for segmentation. For segmentation choose labels with polygons. The name of the labels is important and should correspond to the following:
+
+For the bounding boxes:
+- Gauge
+- OCR Numbers
+- OCR Unit
+
+For the key points:
+- Middle Notch
+- Start Notch
+- End Notch
+
+For the segmentation:
+- Needle
 
 When exporting these with label-studio you get 3 json files, one for each project. Provide these when running the full_evaluation script.
 
