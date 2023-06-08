@@ -2,9 +2,16 @@ import os
 from matplotlib.patches import Polygon
 import numpy as np
 import matplotlib.pyplot as plt
-import cv2
+import matplotlib
 
+import cv2
+from PIL import Image
+
+# pylint: disable=no-member
+from evaluation import constants
 from geometry.ellipse import get_ellipse_pts, get_point_from_angle
+
+matplotlib.use('Agg')
 
 RUN_PATH = 'run'
 
@@ -17,6 +24,11 @@ class Plotter:
 
     def set_image(self, image):
         self.image = image
+
+    def save_img(self):
+        im = Image.fromarray(self.image)
+        path = os.path.join(self.run_path, constants.ORIGINAL_IMG_FILE_NAME)
+        im.save(path)
 
     def plot_image(self, title):
         plt.figure()
@@ -38,30 +50,23 @@ class Plotter:
         :param boxes: list of bounding boxes
         """
         img = np.copy(self.image)
-        for box in boxes:
-            bbox = box.xyxy[0].int()
+        for bbox in boxes:
             start_point = (int(bbox[0]), int(bbox[1]))
             end_point = (int(bbox[2]), int(bbox[3]))
 
-            color_face = (0, 255, 0)
-            color_needle = (255, 0, 0)
-            if box.cls == 0:
-                color = color_face
-            else:
-                color = color_needle
+            color = (0, 255, 0)
 
             img = cv2.rectangle(img,
                                 start_point,
                                 end_point,
                                 color=color,
-                                thickness=5)
+                                thickness=3)
 
         plt.figure()
         plt.imshow(img)
 
         path = os.path.join(self.run_path, "bbox_results.jpg")
         plt.savefig(path)
-        # plt.show()
 
     def plot_test_point(self, point, title):
         plt.figure(figsize=(12, 8))
@@ -269,3 +274,56 @@ class Plotter:
         path = os.path.join(self.run_path, "heatmaps_results.jpg")
         plt.savefig(path)
         # plt.show()
+
+    def plot_linear_fit(self, ocr_numbers, needle, line):
+        plt.figure()
+
+        x = [0, 2 * np.pi]
+
+        plt.scatter(ocr_numbers[:, 0],
+                    ocr_numbers[:, 1],
+                    color='orange',
+                    label='OCR_readings')
+        plt.plot(x, line(x), color='blue', label='Fitted Line')
+        plt.scatter(needle[0], needle[1], color='red', label='needle_point')
+
+        # Add labels and title
+        plt.xlabel('angle on ellipse')
+        plt.ylabel('reading on gauge')
+
+        # Add legend
+        plt.legend()
+
+        # Show the plot
+        path = os.path.join(self.run_path, "reading_line_fit.jpg")
+        plt.savefig(path)
+
+    def plot_linear_fit_ransac(self, ocr_numbers, needle, line, inlier_mask,
+                               outlier_mask):
+        plt.figure()
+
+        line_x = [0, 2 * np.pi]
+        line_y = line(line_x)
+
+        plt.scatter(ocr_numbers[:, 0][inlier_mask],
+                    ocr_numbers[:, 1][inlier_mask],
+                    color='orange',
+                    label='Inlier ocr')
+
+        plt.scatter(ocr_numbers[:, 0][outlier_mask],
+                    ocr_numbers[:, 1][outlier_mask],
+                    color='gold',
+                    label='Outlier ocr')
+        plt.plot(line_x, line_y, color='royalblue', label='Fitted Line')
+        plt.scatter(needle[0], needle[1], color='red', label='needle_point')
+
+        # Add labels and title
+        plt.xlabel('angle on ellipse')
+        plt.ylabel('reading on gauge')
+
+        # Add legend
+        plt.legend()
+
+        # Show the plot
+        path = os.path.join(self.run_path, "reading_line_fit.jpg")
+        plt.savefig(path)

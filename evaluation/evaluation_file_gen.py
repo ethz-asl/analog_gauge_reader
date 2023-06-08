@@ -2,7 +2,7 @@ import os
 import json
 import argparse
 
-from common import RANGE_KEY, READING_KEY, MEASURE_UNIT_KEY
+from constants import RANGE_KEY, READING_KEY, MEASURE_UNIT_KEY
 
 
 def get_files_from_folder(folder):

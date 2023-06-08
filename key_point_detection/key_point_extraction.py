@@ -27,7 +27,7 @@ def extract_start_end_points(heatmap, threshold):
     # swap coordinates
     coords[:, [1, 0]] = coords[:, [0, 1]]
     if coords.shape[0] == 0:
-        if threshold <= 0.1:
+        if threshold < 0.05:
             print(f"No point with confidence at least {threshold} detected.")
             return coords
 

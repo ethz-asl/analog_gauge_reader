@@ -14,49 +14,23 @@ from ocr.ocr_inference import ocr
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
 from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
     get_point_from_angle, get_polar_angle, get_theta_middle, get_ellipse_error
-from geometry.angle_converter import AngleConverter
+from angle_reading_fit.angle_converter import AngleConverter
+from angle_reading_fit.line_fit import line_fit, line_fit_ransac
 from segmentation.segmenation_inference import get_start_end_line, segment_gauge_needle, \
     get_fitted_line, cut_off_line
-from common import ERROR_FILE_NAME, OCR_NONE_DETECTED_KEY, OCR_ONLY_ONE_DETECTED_KEY, \
-                   RESULT_FILE_NAME, READING_KEY, FAILED
+# pylint: disable=no-name-in-module
+# pylint: disable=no-member
+from evaluation import constants
 
 OCR_THRESHOLD = 0.7
 RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
 WRAP_AROUND_FIX = True
+RANSAC = True
 
 
-def read_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--input',
-        type=str,
-        required=True,
-        help=
-        "Path to input image. If a directory then it will pass all images of directory"
-    )
-    parser.add_argument('--detection_model',
-                        type=str,
-                        required=True,
-                        help="Path to detection model")
-    parser.add_argument('--key_point_model',
-                        type=str,
-                        required=True,
-                        help="Path to key point model")
-    parser.add_argument('--segmentation_model',
-                        type=str,
-                        required=True,
-                        help="Path to segmentation model")
-    parser.add_argument('--base_path',
-                        type=str,
-                        required=True,
-                        help="Path where run folder is stored")
-    parser.add_argument('--debug', action='store_true')
-    return parser.parse_args()
-
-
-def crop_image(img, box):
+def crop_image(img, box, flag=False, two_dimensional=False):
     """
     crop image
     :param img: orignal image
@@ -64,8 +38,12 @@ def crop_image(img, box):
     :return: cropped image
     """
     img = np.copy(img)
-    cropped_img = img[box[1]:box[3],
-                      box[0]:box[2], :]  # image has format [y, x, rgb]
+    if two_dimensional:
+        cropped_img = img[box[1]:box[3],
+                          box[0]:box[2]]  # image has format [y, x]
+    else:
+        cropped_img = img[box[1]:box[3],
+                          box[0]:box[2], :]  # image has format [y, x, rgb]
 
     height = int(box[3] - box[1])
     width = int(box[2] - box[0])
@@ -88,22 +66,33 @@ def crop_image(img, box):
                                  right,
                                  cv2.BORDER_CONSTANT,
                                  value=pad_color)
+
+    if flag:
+        return new_img, (top, bottom, left, right)
     return new_img
 
 
 def process_image(img_path, detection_model_path, key_point_model,
-                  segmentation_model, run_path, debug):
+                  segmentation_model, run_path, debug, eval_mode):
 
     result = []
     errors = {}
+    result_full = {}
 
     logging.info("Start processing image at path %s", img_path)
 
     image = Image.open(img_path).convert("RGB")
     image = np.asarray(image)
 
+    if eval_mode:
+        result_full[constants.IMG_SIZE_KEY] = {
+            'width': image.shape[1],
+            'height': image.shape[0]
+        }
+
     if debug:
         plotter = Plotter(run_path, image)
+        plotter.save_img()
 
     # ------------------Gauge detection-------------------------
     if debug:
@@ -124,6 +113,14 @@ def process_image(img_path, detection_model_path, key_point_model,
     cropped_img = cv2.resize(cropped_img,
                              dsize=RESOLUTION,
                              interpolation=cv2.INTER_CUBIC)
+
+    if eval_mode:
+        result_full[constants.GAUGE_DET_KEY] = {
+            'x': box[0].item(),
+            'y': box[1].item(),
+            'width': box[2].item() - box[0].item(),
+            'height': box[3].item() - box[1].item(),
+        }
 
     if debug:
         plotter.set_image(cropped_img)
@@ -147,6 +144,28 @@ def process_image(img_path, detection_model_path, key_point_model,
     start_point = key_point_list[0]
     end_point = key_point_list[2]
 
+    if eval_mode:
+        if start_point.shape == (1, 2):
+            result_full[constants.KEYPOINT_START_KEY] = {
+                'x': start_point[0][0],
+                'y': start_point[0][1]
+            }
+        else:
+            result_full[constants.KEYPOINT_START_KEY] = constants.FAILED
+        if end_point.shape == (1, 2):
+            result_full[constants.KEYPOINT_END_KEY] = {
+                'x': end_point[0][0],
+                'y': end_point[0][1]
+            }
+        else:
+            result_full[constants.KEYPOINT_END_KEY] = constants.FAILED
+        result_full[constants.KEYPOINT_NOTCH_KEY] = []
+        for point in key_points:
+            result_full[constants.KEYPOINT_NOTCH_KEY].append({
+                'x': point[0],
+                'y': point[1]
+            })
+
     if debug:
         plotter.plot_heatmaps(heatmaps)
         plotter.plot_key_points(key_point_list)
@@ -162,7 +181,14 @@ def process_image(img_path, detection_model_path, key_point_model,
     logging.info("Start ellipse fitting")
 
     coeffs = fit_ellipse(key_points[:, 0], key_points[:, 1])
-    ellipse_params = cart_to_pol(coeffs)
+    try:
+        ellipse_params = cart_to_pol(coeffs)
+    except ValueError:
+        logging.error("Ellipse parameters not an ellipse.")
+        errors[constants.NOT_AN_ELLIPSE_ERROR_KEY] = True
+        result.append({constants.READING_KEY: constants.FAILED})
+        write_files(result, result_full, errors, run_path, eval_mode)
+        return
 
     ellipse_error = get_ellipse_error(key_points, ellipse_params)
     errors["Ellipse fit error"] = ellipse_error
@@ -190,13 +216,28 @@ def process_image(img_path, detection_model_path, key_point_model,
     number_labels = []
     for reading in ocr_readings:
         if reading.is_number() and reading.confidence > OCR_THRESHOLD:
-            number_labels.append(reading)
+            # Add heuristics to filter out serial numbers
+            if not (abs(reading.number) > 10000 or
+                    (abs(reading.number) > 100 and reading.number % 10 != 0)):
+                number_labels.append(reading)
 
     mean_number_ocr_conf = 0
     for number_label in number_labels:
         mean_number_ocr_conf += number_label.confidence / len(number_labels)
 
     errors["OCR numbers mean lack of confidence"] = 1 - mean_number_ocr_conf
+
+    if eval_mode:
+        ocr_bbox_list = []
+        for number_label in number_labels:
+            box = number_label.get_bounding_box()
+            ocr_bbox_list.append({
+                'x': box[0],
+                'y': box[1],
+                'width': box[2] - box[0],
+                'height': box[3] - box[1],
+            })
+        result_full[constants.OCR_NUM_KEY] = ocr_bbox_list
 
     if debug:
         plotter.plot_ocr(number_labels, title='numbers')
@@ -211,8 +252,22 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Start segmentation")
 
-    needle_mask_x, needle_mask_y = segment_gauge_needle(
-        cropped_img, segmentation_model)
+    try:
+        needle_mask_x, needle_mask_y = segment_gauge_needle(
+            cropped_img, segmentation_model)
+    except AttributeError:
+        logging.error("Segmentation failed, no needle found")
+        errors[constants.SEGMENTATION_FAILED_KEY] = True
+        result.append({constants.READING_KEY: constants.FAILED})
+        write_files(result, result_full, errors, run_path, eval_mode)
+        return
+
+    if eval_mode:
+        result_full[constants.NEEDLE_MASK_KEY] = {
+            'x': needle_mask_x.tolist(),
+            'y': needle_mask_y.tolist()
+        }
+
     needle_line_coeffs, needle_error = get_fitted_line(needle_mask_x,
                                                        needle_mask_y)
     needle_line_start_x, needle_line_end_x = get_start_end_line(needle_mask_x)
@@ -242,13 +297,13 @@ def process_image(img_path, detection_model_path, key_point_model,
     if len(number_labels) == 0:
         print("Didn't find any numbers with ocr")
         logging.error("Didn't find any numbers with ocr")
-        errors[OCR_NONE_DETECTED_KEY] = True
-        result.append({READING_KEY: FAILED})
-        write_files(result, errors, run_path)
+        errors[constants.OCR_NONE_DETECTED_KEY] = True
+        result.append({constants.READING_KEY: constants.FAILED})
+        write_files(result, result_full, errors, run_path, eval_mode)
         return
     if len(number_labels) == 1:
         logging.warning("Only found 1 number with ocr")
-        errors[OCR_ONLY_ONE_DETECTED_KEY] = True
+        errors[constants.OCR_ONLY_ONE_DETECTED_KEY] = True
 
     for number in number_labels:
         theta = get_polar_angle(number.center, ellipse_params)
@@ -263,6 +318,13 @@ def process_image(img_path, detection_model_path, key_point_model,
         needle_line_coeffs, (needle_line_start_x, needle_line_end_x),
         ellipse_params)
 
+    if point_needle_ellipse.shape[0] == 0:
+        logging.error("Needle line and ellipse do not intersect!")
+        errors[constants.OCR_NONE_DETECTED_KEY] = True
+        result.append({constants.READING_KEY: constants.FAILED})
+        write_files(result, result_full, errors, run_path, eval_mode)
+        return
+
     if debug:
         plotter.plot_ellipse(point_needle_ellipse.reshape(1, 2),
                              ellipse_params, 'needle point')
@@ -273,9 +335,8 @@ def process_image(img_path, detection_model_path, key_point_model,
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
 
     # Find bottom point to set there the zero for wrap around
-    if WRAP_AROUND_FIX and start_point.shape == (1,
-                                                 2) and end_point.shape == (1,
-                                                                            2):
+    if WRAP_AROUND_FIX and start_point.shape == (1, 2) \
+        and end_point.shape == (1, 2):
         theta_start = get_polar_angle(start_point.flatten(), ellipse_params)
         theta_end = get_polar_angle(end_point.flatten(), ellipse_params)
         theta_zero = get_theta_middle(theta_start, theta_end)
@@ -296,14 +357,19 @@ def process_image(img_path, detection_model_path, key_point_model,
             (angle_converter.convert_angle(number.theta), number.number))
 
     angle_number_arr = np.array(angle_number_list)
-    reading_line_coeff = np.polyfit(angle_number_arr[:, 0],
-                                    angle_number_arr[:, 1], 1)
-    reading_line = np.poly1d(reading_line_coeff)
 
+    if RANSAC:
+        reading_line_coeff, inlier_mask, outlier_mask = line_fit_ransac(
+            angle_number_arr[:, 0], angle_number_arr[:, 1])
+    else:
+        reading_line_coeff = line_fit(angle_number_arr[:, 0],
+                                      angle_number_arr[:, 1])
+
+    reading_line = np.poly1d(reading_line_coeff)
     reading_line_res = np.sum(
         abs(
             np.polyval(reading_line_coeff, angle_number_arr[:, 0]) -
-            angle_number_arr[:, 1]))
+            angle_number_arr[:, 0]))
     reading_line_mean_err = reading_line_res / len(angle_number_arr)
     errors["Mean residual on fitted angle line"] = reading_line_mean_err
 
@@ -311,23 +377,37 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     reading = reading_line(needle_angle_conv)
 
-    result.append({READING_KEY: reading})
+    result.append({constants.READING_KEY: reading})
 
     if debug:
+        if RANSAC:
+            plotter.plot_linear_fit_ransac(angle_number_arr,
+                                           (needle_angle_conv, reading),
+                                           reading_line, inlier_mask,
+                                           outlier_mask)
+        else:
+            plotter.plot_linear_fit(angle_number_arr,
+                                    (needle_angle_conv, reading), reading_line)
+
         print(f"Final reading is: {reading}")
         plotter.plot_final_reading_ellipse([], point_needle_ellipse,
                                            round(reading, 1), ellipse_params)
 
     # ------------------Write result to file-------------------------
-    write_files(result, errors, run_path)
+    write_files(result, result_full, errors, run_path, eval_mode)
 
 
-def write_files(result, errors, run_path):
-    result_path = os.path.join(run_path, RESULT_FILE_NAME)
+def write_files(result, result_full, errors, run_path, eval_mode):
+    result_path = os.path.join(run_path, constants.RESULT_FILE_NAME)
     write_json_file(result_path, result)
 
-    error_path = os.path.join(run_path, ERROR_FILE_NAME)
+    error_path = os.path.join(run_path, constants.ERROR_FILE_NAME)
     write_json_file(error_path, errors)
+
+    if eval_mode:
+        result_full_path = os.path.join(run_path,
+                                        constants.RESULT_FULL_FILE_NAME)
+        write_json_file(result_full_path, result_full)
 
 
 def write_json_file(filename, dictionary):
@@ -345,7 +425,7 @@ def main():
     segmentation_model = args.segmentation_model
     base_path = args.base_path
 
-    time_str = time.strftime("%Y%m%d%H%M")
+    time_str = time.strftime("%Y%m%d%H%M%S")
     base_path = os.path.join(base_path, RUN_PATH + '_' + time_str)
     os.makedirs(base_path)
 
@@ -368,7 +448,8 @@ def main():
                       key_point_model,
                       segmentation_model,
                       run_path,
-                      debug=args.debug)
+                      debug=args.debug,
+                      eval_mode=args.eval)
     elif os.path.isdir(input_path):
         for image_name in os.listdir(input_path):
             img_path = os.path.join(input_path, image_name)
@@ -379,7 +460,8 @@ def main():
                               key_point_model,
                               segmentation_model,
                               run_path,
-                              debug=args.debug)
+                              debug=args.debug,
+                              eval_mode=args.eval)
 
             # pylint: disable=broad-except
             # For now want to catch general exceptions and still continue with the other images.
@@ -387,6 +469,40 @@ def main():
                 err_msg = f"Unexpected {err=}, {type(err)=}"
                 print(err_msg)
                 logging.error(err_msg)
+
+    else:
+        print("Error: input file or directory does not exist.")
+        logging.error("input file or directory does not exist.")
+
+
+def read_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--input',
+        type=str,
+        required=True,
+        help=
+        "Path to input image. If a directory then it will pass all images of directory"
+    )
+    parser.add_argument('--detection_model',
+                        type=str,
+                        required=True,
+                        help="Path to detection model")
+    parser.add_argument('--key_point_model',
+                        type=str,
+                        required=True,
+                        help="Path to key point model")
+    parser.add_argument('--segmentation_model',
+                        type=str,
+                        required=True,
+                        help="Path to segmentation model")
+    parser.add_argument('--base_path',
+                        type=str,
+                        required=True,
+                        help="Path where run folder is stored")
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--eval', action='store_true')
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

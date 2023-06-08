@@ -29,3 +29,11 @@ class OCRReading:
 
     def set_theta(self, theta):
         self.theta = theta
+
+    def get_bounding_box(self):
+        x_min = np.min(self.polygon[:, 0])
+        y_min = np.min(self.polygon[:, 1])
+        x_max = np.max(self.polygon[:, 0])
+        y_max = np.max(self.polygon[:, 1])
+
+        return (x_min, y_min, x_max, y_max)
