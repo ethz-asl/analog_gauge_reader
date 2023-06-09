@@ -38,6 +38,7 @@ N_FAILED_ELLIPSE_LINE_NO_INTERSECT = 'number of examples, where ellipse has faul
 
 GAUGE_IOU_KEY = 'IoU of gauge detection and truth'
 N_OCR_DETECTED_KEY = 'N annotated bbox of OCR has IoU at least 0.5 with predicted'
+PERCENTAGE_OCR_DETECTED_KEY = 'Percentage of detected OCR numbers'
 NOTCHES_METRICS_KEY = 'metrics for notch detection'
 START_METRICS_KEY = 'metrics for start notch detection'
 END_METRICS_KEY = 'metrics for end notch detection'
