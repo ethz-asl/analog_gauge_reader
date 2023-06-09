@@ -349,8 +349,9 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     if debug:
         zero_point = get_point_from_angle(theta_zero, ellipse_params)
-        plotter.plot_ellipse(
-            np.array(zero_point).reshape((1, 2)), ellipse_params, "zero_point")
+        plotter.plot_zero_point_ellipse(np.array(zero_point),
+                                        np.vstack((start_point, end_point)),
+                                        ellipse_params)
 
     angle_converter = AngleConverter(theta_zero)
 

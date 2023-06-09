@@ -3,6 +3,7 @@ from matplotlib.patches import Polygon
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
+from matplotlib import patches
 
 import cv2
 from PIL import Image
@@ -145,6 +146,47 @@ class Plotter:
         plt.plot(x, y)  # plot ellipse
 
         path = os.path.join(self.run_path, f"ellipse_results_{title}.jpg")
+        plt.savefig(path)
+        # plt.show()
+
+    def plot_zero_point_ellipse(self, zero_point, start_end_point,
+                                ellipse_params):
+        """
+        plot ellipse and points with annotations.
+        points is a 2d numpy array with one point per row
+        """
+        plt.figure()
+
+        fig, ax = plt.subplots()
+        fig.set_size_inches(8, 6)
+
+        ax.imshow(self.image)
+
+        x = start_end_point[:, 0]
+        y = start_end_point[:, 1]
+
+        zero_point_color = 'red'
+        start_end_color = 'green'
+
+        x = start_end_point[:, 0]
+        y = start_end_point[:, 1]
+        ax.scatter(x, y, marker='x', c=start_end_color,
+                   s=50)  # plot start end point
+
+        x = zero_point[0]
+        y = zero_point[1]
+        ax.scatter(x, y, marker='x', c=zero_point_color,
+                   s=50)  # plot start end point
+
+        x, y = get_ellipse_pts(ellipse_params)
+        plt.plot(x, y)  # plot ellipse
+
+        zero_patch = patches.Patch(color=zero_point_color, label='zero-point')
+        start_end_patch = patches.Patch(color=start_end_color,
+                                        label='Start and End Point')
+        plt.legend(handles=[zero_patch, start_end_patch])
+
+        path = os.path.join(self.run_path, "ellipse_zero_point.jpg")
         plt.savefig(path)
         # plt.show()
 
