@@ -56,6 +56,7 @@ def get_annotations_bbox(data):
         }
 
         bbox_annotations[constants.OCR_NUM_KEY] = []
+        bbox_annotations[constants.OCR_UNIT_KEY] = None
 
         for annotation in data_point['annotations'][0]['result']:
 
@@ -570,8 +571,9 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
         # Crop and rescale all annotations
         for bbox in annotation_dict[constants.OCR_NUM_KEY]:
             rescale_bbox(bbox, pred_gauge_bbox, border)
-        rescale_bbox(annotation_dict[constants.OCR_UNIT_KEY], pred_gauge_bbox,
-                     border)
+        if annotation_dict[constants.OCR_UNIT_KEY] is not None:
+            rescale_bbox(annotation_dict[constants.OCR_UNIT_KEY],
+                         pred_gauge_bbox, border)
         rescale_point(annotation_dict[constants.KEYPOINT_START_KEY],
                       pred_gauge_bbox, border)
         rescale_point(annotation_dict[constants.KEYPOINT_END_KEY],
