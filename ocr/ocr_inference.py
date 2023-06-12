@@ -56,9 +56,9 @@ def ocr_rotations(img, plotter, debug):
 
     max_conf = -1
     max_num_of_numericals = -1
+    max_unit_detected = False
 
-    # try different rotations. pick the rotation with the most numericals recognized.
-    # In the case of a tie, pick the one with most overall confidence.
+    # try different rotations.
     for degree in degree_list:
         rot_img = rotate(img, degree)
         ocr_readings, ocr_visualization = ocr(rot_img, visualize=True)
@@ -67,15 +67,28 @@ def ocr_rotations(img, plotter, debug):
 
         number_of_numericals = 0
         cumulative_confidence = 0
+        unit_detected = False
         for ocr_reading in ocr_readings:
             # only consider readings with high confidence
             if ocr_reading.confidence > 0.5:
                 cumulative_confidence += ocr_reading.confidence
-            if ocr_reading.is_number():
-                number_of_numericals += 1
+                if ocr_reading.is_number():
+                    number_of_numericals += 1
+            if ocr_reading.is_unit():
+                unit_detected = True
 
-        if number_of_numericals > max_num_of_numericals or \
-            (number_of_numericals == max_num_of_numericals and cumulative_confidence > max_conf):
+        # pick the rotation with the most numericals recognized.
+        # In the case of a tie and pick the one that recognizes the unit.
+        # If neither or both do, pick the one with most overall confidence.
+        # pylint: disable-next = too-many-boolean-expressions
+        if (number_of_numericals > max_num_of_numericals
+                or (number_of_numericals == max_num_of_numericals
+                    and unit_detected and not max_unit_detected)
+                or (number_of_numericals == max_num_of_numericals
+                    and max_unit_detected == unit_detected
+                    and cumulative_confidence > max_conf)):
+
+            max_unit_detected = unit_detected
             max_num_of_numericals = number_of_numericals
             max_conf = cumulative_confidence
             best_ocr_readings = ocr_readings

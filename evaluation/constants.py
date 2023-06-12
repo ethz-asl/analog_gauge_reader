@@ -49,4 +49,7 @@ NEEDLE_IOU_KEY = 'IoU of needle segmentation'
 # Other constants-------------------------------------------------------
 FAILED = 'Failed'
 
+NOT_FOUND = 'not detected'
+MULTIPLE_FOUND = 'multiple detected'
+
 UNIT_LIST = ['bar', 'mbar', 'psi', 'MPa']

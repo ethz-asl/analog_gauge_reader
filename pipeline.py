@@ -213,7 +213,8 @@ def process_image(img_path, detection_model_path, key_point_model,
         ocr_readings, ocr_visualization, degree = ocr_rotations(
             cropped_img, plotter, debug)
         logging.info("Rotate image by %s degrees", degree)
-        result_full[constants.OCR_ROTATION_KEY] = degree
+        if eval_mode:
+            result_full[constants.OCR_ROTATION_KEY] = degree
     else:
         if debug:
             ocr_readings, ocr_visualization = ocr(cropped_img, debug)
@@ -223,6 +224,29 @@ def process_image(img_path, detection_model_path, key_point_model,
     if debug:
         plotter.plot_ocr_visualization(ocr_visualization)
         plotter.plot_ocr(ocr_readings, title='full')
+
+    # find unit from the detected readings.
+    unit_readings = []
+    for reading in ocr_readings:
+        if reading.is_unit():
+            unit_readings.append(reading)
+
+    if len(unit_readings) == 0:
+        unit = constants.NOT_FOUND
+        result_full[constants.OCR_UNIT_KEY] = constants.NOT_FOUND
+    elif len(unit_readings) == 1:
+        unit = unit_readings[0].reading
+        box = unit_readings[0].get_bounding_box()
+        result_full[constants.OCR_UNIT_KEY] = {
+            'x': box[0],
+            'y': box[1],
+            'width': box[2] - box[0],
+            'height': box[3] - box[1],
+        }
+    # if multiple detections add a list of these readings.
+    else:
+        unit = [unit_reading.reading for unit_reading in unit_readings]
+        result_full[constants.OCR_UNIT_KEY] = constants.MULTIPLE_FOUND
 
     # get list of ocr readings that are the numbers
     number_labels = []
@@ -253,6 +277,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     if debug:
         plotter.plot_ocr(number_labels, title='numbers')
+        plotter.plot_ocr(unit_readings, title='unit')
 
     logging.info("Finish OCR")
 
@@ -391,7 +416,10 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     reading = reading_line(needle_angle_conv)
 
-    result.append({constants.READING_KEY: reading})
+    result.append({
+        constants.READING_KEY: reading,
+        constants.MEASURE_UNIT_KEY: unit
+    })
 
     if debug:
         if RANSAC:
