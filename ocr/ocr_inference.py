@@ -1,5 +1,8 @@
-from mmocr.apis import MMOCRInferencer
+import math
+
 import numpy as np
+import cv2
+from mmocr.apis import MMOCRInferencer
 
 from ocr.ocr_reading import OCRReading
 
@@ -46,3 +49,75 @@ def ocr(img, visualize=True):
         return readings, visualization
 
     return readings
+
+
+def ocr_rotations(img, plotter, debug):
+    degree_list = [0, 45, 90, 135, 180, 225, 270, 315]
+
+    max_conf = -1
+    max_num_of_numericals = -1
+
+    #scale
+    for degree in degree_list:
+        rot_img = rotate(img, degree)
+        ocr_readings, ocr_visualization = ocr(rot_img, visualize=True)
+        if debug:
+            plotter.plot_ocr_visualization(ocr_visualization, degree)
+
+        number_of_numericals = 0
+        cumulative_confidence = 0
+        for ocr_reading in ocr_readings:
+            cumulative_confidence += ocr_reading.confidence
+            if ocr_reading.is_number():
+                number_of_numericals += 1
+
+        if number_of_numericals > max_num_of_numericals or \
+            (number_of_numericals == max_num_of_numericals and cumulative_confidence > max_conf):
+            max_num_of_numericals = number_of_numericals
+            max_conf = cumulative_confidence
+            best_ocr_readings = ocr_readings
+            best_ocr_visualization = ocr_visualization
+            best_degree = degree
+            best_rot_img = rot_img
+
+    #rotate the ocr reading points back:
+    height, width = best_rot_img.shape[:2]
+    for ocr_reading in best_ocr_readings:
+        polygon = ocr_reading.polygon
+        new_polygon = []
+        for idx in range(len(polygon)):
+            point = polygon[idx, :]
+            x_rot, y_rot = rotate_point(point[0], point[1], width, height,
+                                        best_degree)
+            new_polygon.append([x_rot, y_rot])
+        ocr_reading.set_polygon(np.array(new_polygon))
+
+    return best_ocr_readings, best_ocr_visualization, best_degree
+
+
+def rotate(image, angle):
+    height, width = image.shape[:2]
+    rotation_matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle,
+                                              1)
+    rotated_image = cv2.warpAffine(image, rotation_matrix, (width, height))
+    return rotated_image
+
+
+def rotate_point(x, y, image_width, image_height, rotation_angle):
+    center_x = image_width / 2
+    center_y = image_height / 2
+
+    # Translate the point
+    translated_x = x - center_x
+    translated_y = y - center_y
+
+    # Rotate the point
+    theta = math.radians(rotation_angle)
+    rotated_x = translated_x * math.cos(theta) - translated_y * math.sin(theta)
+    rotated_y = translated_x * math.sin(theta) + translated_y * math.cos(theta)
+
+    # Translate the point back
+    x_rotated = rotated_x + center_x
+    y_rotated = rotated_y + center_y
+
+    return x_rotated, y_rotated

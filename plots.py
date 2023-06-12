@@ -38,10 +38,15 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
-    def plot_ocr_visualization(self, vis):
+    def plot_ocr_visualization(self, vis, degree=None):
         plt.figure()
         plt.imshow(vis)
-        path = os.path.join(self.run_path, "ocr_visualization_results.jpg")
+        if degree is None:
+            path = os.path.join(self.run_path,
+                                "ocr_visualization_results_chosen.jpg")
+        else:
+            path = os.path.join(self.run_path,
+                                f"ocr_visualization_results{degree}.jpg")
         plt.savefig(path)
 
     def plot_bounding_box_img(self, boxes):

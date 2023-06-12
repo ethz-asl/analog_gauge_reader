@@ -90,7 +90,7 @@ pip install -U scikit-learn
 The pipeline script can be run with the following command:
 
 ```shell
-python pipeline.py --detection_model path/to/detection_model --segmentation_model /path/to/segmentation_model --key_point_model path/to/key_point_model --out_path path/to/results --input path/to/test_image_folder/images --debug --eval
+python pipeline.py --detection_model path/to/detection_model --segmentation_model /path/to/segmentation_model --key_point_model path/to/key_point_model --base_path path/to/results --input path/to/test_image_folder/images --debug --eval
 ```
 
 For the input you can either choose an entire folder of images or a single image. Both times the result will be saved to a new run folder created in the `base_path` folder. For each image in the input folder a separate folder will be created.

@@ -27,6 +27,10 @@ class OCRReading:
         except ValueError:
             return False
 
+    def set_polygon(self, polygon):
+        self.polygon = polygon
+        self.center = self._get_centroid()
+
     def set_theta(self, theta):
         self.theta = theta
 

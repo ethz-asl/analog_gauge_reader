@@ -26,6 +26,8 @@ KEYPOINT_END_KEY = "End Notch"
 KEYPOINT_NOTCH_KEY = "Keypoint Notch"
 ORIGINAL_IMG_KEY = "original image"
 
+OCR_ROTATION_KEY = "Rotated images by this many degrees for OCR"
+
 PRED = 'prediction'
 TRUTH = 'true_reading'
 ABS_ERROR = 'total absolute error'

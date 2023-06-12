@@ -10,7 +10,7 @@ from PIL import Image
 
 from plots import RUN_PATH, Plotter
 from gauge_detection.detection_inference import detection_gauge_face
-from ocr.ocr_inference import ocr
+from ocr.ocr_inference import ocr, ocr_rotations
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
 from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
     get_point_from_angle, get_polar_angle, get_theta_middle, get_ellipse_error
@@ -28,6 +28,7 @@ RESOLUTION = (
 )  # make sure both dimensions are multiples of 14 for keypoint detection
 WRAP_AROUND_FIX = True
 RANSAC = True
+RANDOM_ROTATIONS = True
 
 
 def crop_image(img, box, flag=False, two_dimensional=False):
@@ -208,7 +209,16 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Start OCR")
 
-    ocr_readings, ocr_visualization = ocr(cropped_img, debug)
+    if RANDOM_ROTATIONS:
+        ocr_readings, ocr_visualization, degree = ocr_rotations(
+            cropped_img, plotter, debug)
+        logging.info("Rotate image by %s degrees", degree)
+        result_full[constants.OCR_ROTATION_KEY] = degree
+    else:
+        if debug:
+            ocr_readings, ocr_visualization = ocr(cropped_img, debug)
+        else:
+            ocr_readings = ocr(cropped_img, debug)
 
     if debug:
         plotter.plot_ocr_visualization(ocr_visualization)
