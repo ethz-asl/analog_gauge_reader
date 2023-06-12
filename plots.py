@@ -165,21 +165,19 @@ class Plotter:
         x = start_end_point[:, 0]
         y = start_end_point[:, 1]
 
-        zero_point_color = 'red'
-        start_end_color = 'green'
-
-        x = start_end_point[:, 0]
-        y = start_end_point[:, 1]
-        ax.scatter(x, y, marker='x', c=start_end_color,
-                   s=50)  # plot start end point
-
-        x = zero_point[0]
-        y = zero_point[1]
-        ax.scatter(x, y, marker='x', c=zero_point_color,
-                   s=50)  # plot start end point
+        zero_point_color = '#41ff00'
+        start_end_color = '#ff0000'
 
         x, y = get_ellipse_pts(ellipse_params)
         plt.plot(x, y)  # plot ellipse
+
+        x = start_end_point[:, 0]
+        y = start_end_point[:, 1]
+        ax.scatter(x, y, c=start_end_color, s=100)  # plot start end point
+
+        x = zero_point[0]
+        y = zero_point[1]
+        ax.scatter(x, y, c=zero_point_color, s=100)  # plot start end point
 
         zero_patch = patches.Patch(color=zero_point_color, label='zero-point')
         start_end_patch = patches.Patch(color=start_end_color,
