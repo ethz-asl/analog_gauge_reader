@@ -57,7 +57,8 @@ def ocr_rotations(img, plotter, debug):
     max_conf = -1
     max_num_of_numericals = -1
 
-    #scale
+    # try different rotations. pick the rotation with the most numericals recognized.
+    # In the case of a tie, pick the one with most overall confidence.
     for degree in degree_list:
         rot_img = rotate(img, degree)
         ocr_readings, ocr_visualization = ocr(rot_img, visualize=True)
@@ -67,7 +68,9 @@ def ocr_rotations(img, plotter, debug):
         number_of_numericals = 0
         cumulative_confidence = 0
         for ocr_reading in ocr_readings:
-            cumulative_confidence += ocr_reading.confidence
+            # only consider readings with high confidence
+            if ocr_reading.confidence > 0.5:
+                cumulative_confidence += ocr_reading.confidence
             if ocr_reading.is_number():
                 number_of_numericals += 1
 
@@ -80,7 +83,7 @@ def ocr_rotations(img, plotter, debug):
             best_degree = degree
             best_rot_img = rot_img
 
-    #rotate the ocr reading points back:
+    #rotate the ocr reading polygons back to the unrotated image. Rotate each point individually
     height, width = best_rot_img.shape[:2]
     for ocr_reading in best_ocr_readings:
         polygon = ocr_reading.polygon
