@@ -28,7 +28,7 @@ RESOLUTION = (
 )  # make sure both dimensions are multiples of 14 for keypoint detection
 WRAP_AROUND_FIX = True
 RANSAC = True
-RANDOM_ROTATIONS = True
+RANDOM_ROTATIONS = False
 
 
 def crop_image(img, box, flag=False, two_dimensional=False):
@@ -111,9 +111,9 @@ def process_image(img_path, detection_model_path, key_point_model,
     cropped_img = crop_image(image, box)
 
     # resize
-    cropped_img = cv2.resize(cropped_img,
-                             dsize=RESOLUTION,
-                             interpolation=cv2.INTER_CUBIC)
+    cropped_resized_img = cv2.resize(cropped_img,
+                                     dsize=RESOLUTION,
+                                     interpolation=cv2.INTER_CUBIC)
 
     if eval_mode:
         result_full[constants.GAUGE_DET_KEY] = {
@@ -124,7 +124,7 @@ def process_image(img_path, detection_model_path, key_point_model,
         }
 
     if debug:
-        plotter.set_image(cropped_img)
+        plotter.set_image(cropped_resized_img)
         plotter.plot_image('cropped')
 
     logging.info("Finish Gauge Detection")
@@ -138,7 +138,7 @@ def process_image(img_path, detection_model_path, key_point_model,
     logging.info("Start key point detection")
 
     key_point_inferencer = KeyPointInference(key_point_model)
-    heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
+    heatmaps = key_point_inferencer.predict_heatmaps(cropped_resized_img)
     key_point_list = detect_key_points(heatmaps)
 
     key_points = key_point_list[1]
@@ -203,6 +203,8 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     # ------------------OCR-------------------------
 
+    # Important detail here: we do the ocr on the cropped non resized image, to not limit resolution
+
     if debug:
         print("-------------------")
         print("OCR")
@@ -220,6 +222,15 @@ def process_image(img_path, detection_model_path, key_point_model,
             ocr_readings, ocr_visualization = ocr(cropped_img, debug)
         else:
             ocr_readings = ocr(cropped_img, debug)
+
+    # resize detected ocr to our resized image.
+    for reading in ocr_readings:
+        polygon = reading.polygon
+        polygon[:,
+                0] = polygon[:, 0] * RESOLUTION[1] / cropped_img.shape[:2][1]
+        polygon[:,
+                1] = polygon[:, 1] * RESOLUTION[0] / cropped_img.shape[:2][0]
+        reading.set_polygon(polygon)
 
     if debug:
         plotter.plot_ocr_visualization(ocr_visualization)
@@ -291,7 +302,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     try:
         needle_mask_x, needle_mask_y = segment_gauge_needle(
-            cropped_img, segmentation_model)
+            cropped_resized_img, segmentation_model)
     except AttributeError:
         logging.error("Segmentation failed, no needle found")
         errors[constants.SEGMENTATION_FAILED_KEY] = True

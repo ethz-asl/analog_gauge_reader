@@ -1,6 +1,6 @@
 import numpy as np
 
-UNIT_LIST = ["bar", "mbar", "millibars", "MPa", "psi", "C", "°C"]
+UNIT_LIST = ["bar", "mbar", "millibars", "MPa", "psi", "C", "°C", "%"]
 
 
 class OCRReading:
