@@ -38,6 +38,13 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
+    def plot_point_img(self, img, points, title):
+        plt.figure()
+        plt.imshow(img)
+        plt.scatter(points[:, 0], points[:, 1])
+        path = os.path.join(self.run_path, f"image_{title}.jpg")
+        plt.savefig(path)
+
     def plot_ocr_visualization(self, vis, degree=None):
         plt.figure()
         plt.imshow(vis)

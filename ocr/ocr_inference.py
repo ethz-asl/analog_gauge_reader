@@ -111,18 +111,65 @@ def ocr_rotations(img, plotter, debug):
     return best_ocr_readings, best_ocr_visualization, best_degree
 
 
+def ocr_single_rotation(img, zero_point, ellipse_center, plotter, debug):
+    # rotation
+    desired_angle = 90
+
+    zero_x = zero_point[0]
+    zero_y = zero_point[1]
+    center_x = ellipse_center[0]
+    center_y = ellipse_center[1]
+
+    if debug:
+        plotter.plot_point_img(
+            img, np.array([[zero_x, zero_y], [center_x, center_y]]),
+            "non_rotated_zer_point")
+
+    angle_deg = math.degrees(math.atan2(zero_y - center_y, zero_x - center_x))
+
+    rot_angle = angle_deg - desired_angle
+    rot_img = rotate_around_point(img, rot_angle, center_x, center_y)
+
+    rot_zero_x, rot_zero_y = rotate_point_around_center(
+        zero_x, zero_y, center_x, center_y, -rot_angle)
+
+    if debug:
+        plotter.plot_point_img(
+            rot_img, np.array([[rot_zero_x, rot_zero_y],
+                               [center_x, center_y]]), "rotated_zero_point")
+
+    ocr_readings, ocr_visualization = ocr(rot_img, visualize=True)
+
+    #rotate the ocr reading polygons back to the unrotated image. Rotate each point individually
+    for ocr_reading in ocr_readings:
+        polygon = ocr_reading.polygon
+        new_polygon = []
+        for idx in range(len(polygon)):
+            point = polygon[idx, :]
+            x_rot, y_rot = rotate_point_around_center(point[0], point[1],
+                                                      center_x, center_y,
+                                                      rot_angle)
+            new_polygon.append([x_rot, y_rot])
+        ocr_reading.set_polygon(np.array(new_polygon))
+
+    return ocr_readings, ocr_visualization, rot_angle
+
+
 def rotate(image, angle):
     height, width = image.shape[:2]
-    rotation_matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle,
-                                              1)
-    rotated_image = cv2.warpAffine(image, rotation_matrix, (width, height))
+    return rotate_around_point(image, angle, width / 2, height / 2)
+
+
+def rotate_around_point(image, angle, x, y):
+    img_width = image.shape[1]
+    img_height = image.shape[0]
+    rotation_matrix = cv2.getRotationMatrix2D((x, y), angle, 1)
+    rotated_image = cv2.warpAffine(image, rotation_matrix,
+                                   (img_width, img_height))
     return rotated_image
 
 
-def rotate_point(x, y, image_width, image_height, rotation_angle):
-    center_x = image_width / 2
-    center_y = image_height / 2
-
+def rotate_point_around_center(x, y, center_x, center_y, rotation_angle):
     # Translate the point
     translated_x = x - center_x
     translated_y = y - center_y
@@ -137,3 +184,8 @@ def rotate_point(x, y, image_width, image_height, rotation_angle):
     y_rotated = rotated_y + center_y
 
     return x_rotated, y_rotated
+
+
+def rotate_point(x, y, image_width, image_height, rotation_angle):
+    return rotate_point_around_center(x, y, image_width / 2, image_height / 2,
+                                      rotation_angle)

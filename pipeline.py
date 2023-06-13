@@ -10,7 +10,7 @@ from PIL import Image
 
 from plots import RUN_PATH, Plotter
 from gauge_detection.detection_inference import detection_gauge_face
-from ocr.ocr_inference import ocr, ocr_rotations
+from ocr.ocr_inference import ocr, ocr_rotations, ocr_single_rotation
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
 from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
     get_point_from_angle, get_polar_angle, get_theta_middle, get_ellipse_error
@@ -26,9 +26,14 @@ OCR_THRESHOLD = 0.7
 RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
+
+# Several flags to set or unset for pipeline
 WRAP_AROUND_FIX = True
 RANSAC = True
+
+# if both true, it will do random rotations. but easier if only one is set.
 RANDOM_ROTATIONS = False
+ZERO_POINT_ROTATION = True
 
 
 def crop_image(img, box, flag=False, two_dimensional=False):
@@ -201,6 +206,24 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Finish ellipse fitting")
 
+    # calculate zero point
+
+    # Find bottom point to set there the zero for wrap around
+    if WRAP_AROUND_FIX and start_point.shape == (1, 2) \
+        and end_point.shape == (1, 2):
+        theta_start = get_polar_angle(start_point.flatten(), ellipse_params)
+        theta_end = get_polar_angle(end_point.flatten(), ellipse_params)
+        theta_zero = get_theta_middle(theta_start, theta_end)
+    else:
+        bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
+        theta_zero = get_polar_angle(bottom_middle, ellipse_params)
+
+    zero_point = get_point_from_angle(theta_zero, ellipse_params)
+    if debug:
+        plotter.plot_zero_point_ellipse(np.array(zero_point),
+                                        np.vstack((start_point, end_point)),
+                                        ellipse_params)
+
     # ------------------OCR-------------------------
 
     # Important detail here: we do the ocr on the cropped non resized image, to not limit resolution
@@ -217,6 +240,19 @@ def process_image(img_path, detection_model_path, key_point_model,
         logging.info("Rotate image by %s degrees", degree)
         if eval_mode:
             result_full[constants.OCR_ROTATION_KEY] = degree
+    elif ZERO_POINT_ROTATION:
+        # resize the zero point and ellipse center to original resolution
+        ellipse_x = ellipse_params[0] * cropped_img.shape[1] / RESOLUTION[1]
+        ellipse_y = ellipse_params[1] * cropped_img.shape[0] / RESOLUTION[0]
+        zero_point_x = zero_point[0] * cropped_img.shape[1] / RESOLUTION[1]
+        zero_point_y = zero_point[1] * cropped_img.shape[0] / RESOLUTION[0]
+
+        ocr_readings, ocr_visualization, degree = ocr_single_rotation(
+            cropped_img, (zero_point_x, zero_point_y), (ellipse_x, ellipse_y),
+            plotter, debug)
+        logging.info("Rotate image by %s degrees", degree)
+        if eval_mode:
+            result_full[constants.OCR_ROTATION_KEY] = degree
     else:
         if debug:
             ocr_readings, ocr_visualization = ocr(cropped_img, debug)
@@ -226,10 +262,8 @@ def process_image(img_path, detection_model_path, key_point_model,
     # resize detected ocr to our resized image.
     for reading in ocr_readings:
         polygon = reading.polygon
-        polygon[:,
-                0] = polygon[:, 0] * RESOLUTION[1] / cropped_img.shape[:2][1]
-        polygon[:,
-                1] = polygon[:, 1] * RESOLUTION[0] / cropped_img.shape[:2][0]
+        polygon[:, 0] = polygon[:, 0] * RESOLUTION[1] / cropped_img.shape[1]
+        polygon[:, 1] = polygon[:, 1] * RESOLUTION[0] / cropped_img.shape[0]
         reading.set_polygon(polygon)
 
     if debug:
@@ -382,22 +416,6 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     # Find angle of needle ellipse point
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
-
-    # Find bottom point to set there the zero for wrap around
-    if WRAP_AROUND_FIX and start_point.shape == (1, 2) \
-        and end_point.shape == (1, 2):
-        theta_start = get_polar_angle(start_point.flatten(), ellipse_params)
-        theta_end = get_polar_angle(end_point.flatten(), ellipse_params)
-        theta_zero = get_theta_middle(theta_start, theta_end)
-    else:
-        bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
-        theta_zero = get_polar_angle(bottom_middle, ellipse_params)
-
-    if debug:
-        zero_point = get_point_from_angle(theta_zero, ellipse_params)
-        plotter.plot_zero_point_ellipse(np.array(zero_point),
-                                        np.vstack((start_point, end_point)),
-                                        ellipse_params)
 
     angle_converter = AngleConverter(theta_zero)
 
