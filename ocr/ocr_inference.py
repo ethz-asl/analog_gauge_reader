@@ -60,7 +60,12 @@ def ocr(img, visualize=True):
     return readings
 
 
-def ocr_warp(image, zero_point, ellipse_params, plotter, debug):
+def ocr_warp(image,
+             zero_point,
+             ellipse_params,
+             plotter,
+             debug,
+             multiple_rot=False):
 
     x0, y0, ap, bp, phi = ellipse_params
 
@@ -79,8 +84,13 @@ def ocr_warp(image, zero_point, ellipse_params, plotter, debug):
                                                     transformation_matrix)
 
     # run through ocr detection with rotation
-    ocr_readings, ocr_visualization, rot_angle = ocr_single_rotation(
-        warp_image, warped_zero_point, warped_ellipse_center, plotter, debug)
+    if multiple_rot:
+        ocr_readings, ocr_visualization, rot_angle = ocr_rotations(
+            warp_image, plotter, debug)
+    else:
+        ocr_readings, ocr_visualization, rot_angle = ocr_single_rotation(
+            warp_image, warped_zero_point, warped_ellipse_center, plotter,
+            debug)
 
     # remap the ocr readings from warped image to original image
     for ocr_reading in ocr_readings:

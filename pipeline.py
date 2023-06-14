@@ -31,9 +31,10 @@ RESOLUTION = (
 WRAP_AROUND_FIX = True
 RANSAC = True
 
-# if warp true then also do zero point rotation. only set one flag at a time from these three
 WARP_OCR = True
-RANDOM_ROTATIONS = False
+
+# if random_rotations true then random rotations.
+RANDOM_ROTATIONS = True
 ZERO_POINT_ROTATION = False
 
 
@@ -274,7 +275,8 @@ def process_image(img_path, detection_model_path, key_point_model,
                                                     cropped_img_resolution)
         # Here we use zero-point rotation
         ocr_readings, ocr_visualization, degree = ocr_warp(
-            cropped_img, res_zero_point, res_ellipse_params, plotter, debug)
+            cropped_img, res_zero_point, res_ellipse_params, plotter, debug,
+            RANDOM_ROTATIONS)
         logging.info("Rotate image by %s degrees", degree)
         if eval_mode:
             result_full[constants.OCR_ROTATION_KEY] = degree
