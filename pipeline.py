@@ -31,11 +31,13 @@ RESOLUTION = (
 WRAP_AROUND_FIX = True
 RANSAC = True
 
-WARP_OCR = True
+WARP_OCR = False
 
 # if random_rotations true then random rotations.
-RANDOM_ROTATIONS = True
+RANDOM_ROTATIONS = False
 ZERO_POINT_ROTATION = False
+
+OCR_ROTATION = RANDOM_ROTATIONS or ZERO_POINT_ROTATION
 
 
 def crop_image(img, box, flag=False, two_dimensional=False):
@@ -251,7 +253,8 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     # ------------------OCR-------------------------
 
-    # Important detail here: we do the ocr on the cropped non resized image, to not limit resolution
+    # Important detail here: we do the ocr on the cropped non resized image,
+    # to not limit the ocr resolution
 
     if debug:
         print("-------------------")
@@ -274,12 +277,18 @@ def process_image(img_path, detection_model_path, key_point_model,
         res_ellipse_params = rescale_ellipse_resize(ellipse_params, RESOLUTION,
                                                     cropped_img_resolution)
         # Here we use zero-point rotation
-        ocr_readings, ocr_visualization, degree = ocr_warp(
-            cropped_img, res_zero_point, res_ellipse_params, plotter, debug,
-            RANDOM_ROTATIONS)
-        logging.info("Rotate image by %s degrees", degree)
-        if eval_mode:
-            result_full[constants.OCR_ROTATION_KEY] = degree
+        if OCR_ROTATION:
+            ocr_readings, ocr_visualization, degree = ocr_warp(
+                cropped_img, res_zero_point, res_ellipse_params, plotter,
+                debug, RANDOM_ROTATIONS, ZERO_POINT_ROTATION)
+            logging.info("Rotate image by %s degrees", degree)
+            if eval_mode:
+                result_full[constants.OCR_ROTATION_KEY] = degree
+        else:
+            # pylint: disable-next=unbalanced-tuple-unpacking
+            ocr_readings, ocr_visualization = ocr_warp(
+                cropped_img, res_zero_point, res_ellipse_params, plotter,
+                debug, RANDOM_ROTATIONS, ZERO_POINT_ROTATION)
     elif ZERO_POINT_ROTATION:
         # resize the zero point and ellipse center to original resolution
         ellipse_x = ellipse_params[0] * cropped_img.shape[1] / RESOLUTION[1]
@@ -342,12 +351,13 @@ def process_image(img_path, detection_model_path, key_point_model,
                     (abs(reading.number) > 100 and reading.number % 10 != 0)):
                 number_labels.append(reading)
 
+    # calculate confidence value for confidence score in final reading
     mean_number_ocr_conf = 0
     for number_label in number_labels:
         mean_number_ocr_conf += number_label.confidence / len(number_labels)
-
     errors["OCR numbers mean lack of confidence"] = 1 - mean_number_ocr_conf
 
+    # save the ocr results for the full evaluation
     if eval_mode:
         ocr_bbox_list = []
         for number_label in number_labels:

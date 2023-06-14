@@ -60,22 +60,21 @@ def ocr(img, visualize=True):
     return readings
 
 
-def ocr_warp(image,
-             zero_point,
-             ellipse_params,
-             plotter,
-             debug,
-             multiple_rot=False):
+def ocr_warp(image, zero_point, ellipse_params, plotter, debug, multiple_rot,
+             zero_point_rot):
 
     x0, y0, ap, bp, phi = ellipse_params
 
     ellipse_center = [x0, y0]
 
-    plotter.plot_just_ellipse(image, ellipse_params, "resize")
+    # uncomment following line to check if ellipse is resized correctly
+    # plotter.plot_just_ellipse(image, ellipse_params, "resize")
 
     # warp the image
     warp_image, transformation_matrix = warp_ellipse_to_circle(
         image, ellipse_center, [ap, bp], phi)
+
+    plotter.plot_any_image(warp_image, "warped")
 
     # move ellipse center and zero point to warped image
     warped_ellipse_center = map_point_transformed_image(
@@ -87,10 +86,12 @@ def ocr_warp(image,
     if multiple_rot:
         ocr_readings, ocr_visualization, rot_angle = ocr_rotations(
             warp_image, plotter, debug)
-    else:
+    elif zero_point_rot:
         ocr_readings, ocr_visualization, rot_angle = ocr_single_rotation(
             warp_image, warped_zero_point, warped_ellipse_center, plotter,
             debug)
+    else:
+        ocr_readings, ocr_visualization = ocr(warp_image, visualize=True)
 
     # remap the ocr readings from warped image to original image
     for ocr_reading in ocr_readings:
@@ -103,7 +104,9 @@ def ocr_warp(image,
             new_polygon.append(original_point.tolist())
         ocr_reading.set_polygon(np.array(new_polygon))
 
-    return ocr_readings, ocr_visualization, rot_angle
+    if zero_point_rot or multiple_rot:
+        return ocr_readings, ocr_visualization, rot_angle
+    return ocr_readings, ocr_visualization
 
 
 def ocr_rotations(img, plotter, debug):

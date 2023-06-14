@@ -38,6 +38,12 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
+    def plot_any_image(self, img, title):
+        plt.figure()
+        plt.imshow(img)
+        path = os.path.join(self.run_path, f"image_{title}.jpg")
+        plt.savefig(path)
+
     def plot_point_img(self, img, points, title):
         plt.figure()
         plt.imshow(img)
@@ -153,14 +159,19 @@ class Plotter:
         x = points[:, 0]
         y = points[:, 1]
 
-        ax.scatter(x, y, marker='x', c='red', s=50)  # plot points
+        ax.scatter(x, y, c='#ff0000', s=50)  # plot points
 
         if annotations is not None and annotation_colors is not None:
             for x_coord, y_coord, annotation, color in zip(
                     x, y, annotations, annotation_colors):
                 ax.annotate(annotation, (x_coord, y_coord),
-                            fontsize=20,
-                            c=color)
+                            fontsize=25,
+                            c=color,
+                            xytext=(10, 10),
+                            textcoords='offset points',
+                            bbox=dict(facecolor='#ffffff',
+                                      alpha=0.5,
+                                      edgecolor='none'))
 
         x, y = get_ellipse_pts(ellipse_params)
         plt.plot(x, y)  # plot ellipse
@@ -222,7 +233,7 @@ class Plotter:
         if len(projected_points) == 1:
             np.expand_dims(projected_points_arr, axis=0)
 
-        ocr_color = '#ff7600'
+        ocr_color = '#38761d'
         annotation_colors = [ocr_color for _ in annotations]
 
         self.plot_ellipse(projected_points_arr,
@@ -249,8 +260,8 @@ class Plotter:
         if len(projected_points) == 1:
             np.expand_dims(projected_points_arr, axis=0)
 
-        ocr_color = '#ff7600'
-        final_reading_color = '#00ccff'
+        ocr_color = '#38761d'
+        final_reading_color = '#2b00ff'
         annotation_colors = [ocr_color for _ in annotations]
         annotation_colors[-1] = final_reading_color
 
@@ -279,6 +290,15 @@ class Plotter:
                                         facecolor='none')
                 ax.add_patch(polygon_patch)
                 ax.scatter(reading.center[0], reading.center[1])
+                ax.annotate(reading.reading,
+                            (reading.center[0], reading.center[1]),
+                            fontsize=25,
+                            c='#38761d',
+                            xytext=(10, 10),
+                            textcoords='offset points',
+                            bbox=dict(facecolor='#ffffff',
+                                      alpha=0.5,
+                                      edgecolor='none'))
         plt.title(f"ocr results {title}")
         path = os.path.join(self.run_path, f"ocr_results_{title}.jpg")
         plt.savefig(path)
