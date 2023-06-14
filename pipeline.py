@@ -10,7 +10,7 @@ from PIL import Image
 
 from plots import RUN_PATH, Plotter
 from gauge_detection.detection_inference import detection_gauge_face
-from ocr.ocr_inference import ocr, ocr_rotations, ocr_single_rotation
+from ocr.ocr_inference import ocr, ocr_rotations, ocr_single_rotation, ocr_warp
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
 from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
     get_point_from_angle, get_polar_angle, get_theta_middle, get_ellipse_error
@@ -31,9 +31,10 @@ RESOLUTION = (
 WRAP_AROUND_FIX = True
 RANSAC = True
 
-# if both true, it will do random rotations. but easier if only one is set.
+# if warp true then also do zero point rotation. only set one flag at a time from these three
+WARP_OCR = True
 RANDOM_ROTATIONS = False
-ZERO_POINT_ROTATION = True
+ZERO_POINT_ROTATION = False
 
 
 def crop_image(img, box, flag=False, two_dimensional=False):
@@ -76,6 +77,29 @@ def crop_image(img, box, flag=False, two_dimensional=False):
     if flag:
         return new_img, (top, bottom, left, right)
     return new_img
+
+
+def move_point_resize(point, original_resolution, resized_resolution):
+    new_point_x = point[0] * resized_resolution[0] / original_resolution[0]
+    new_point_y = point[1] * resized_resolution[1] / original_resolution[1]
+    return new_point_x, new_point_y
+
+
+# here assume that both resolutions are squared
+def rescale_ellipse_resize(ellipse_params, original_resolution,
+                           resized_resolution):
+    x0, y0, ap, bp, phi = ellipse_params
+
+    # move ellipse center
+    x0_new, y0_new = move_point_resize((x0, y0), original_resolution,
+                                       resized_resolution)
+
+    # rescale axis
+    scaling_factor = resized_resolution[0] / original_resolution[0]
+    ap_x_new = scaling_factor * ap
+    bp_x_new = scaling_factor * bp
+
+    return x0_new, y0_new, ap_x_new, bp_x_new, phi
 
 
 def process_image(img_path, detection_model_path, key_point_model,
@@ -234,9 +258,23 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Start OCR")
 
+    cropped_img_resolution = (cropped_img.shape[1], cropped_img.shape[0])
+
     if RANDOM_ROTATIONS:
         ocr_readings, ocr_visualization, degree = ocr_rotations(
             cropped_img, plotter, debug)
+        logging.info("Rotate image by %s degrees", degree)
+        if eval_mode:
+            result_full[constants.OCR_ROTATION_KEY] = degree
+    elif WARP_OCR:
+        # resize the zero point and ellipse center to original resolution
+        res_zero_point = list(
+            move_point_resize(zero_point, RESOLUTION, cropped_img_resolution))
+        res_ellipse_params = rescale_ellipse_resize(ellipse_params, RESOLUTION,
+                                                    cropped_img_resolution)
+        # Here we use zero-point rotation
+        ocr_readings, ocr_visualization, degree = ocr_warp(
+            cropped_img, res_zero_point, res_ellipse_params, plotter, debug)
         logging.info("Rotate image by %s degrees", degree)
         if eval_mode:
             result_full[constants.OCR_ROTATION_KEY] = degree

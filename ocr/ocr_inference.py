@@ -1,10 +1,19 @@
 import math
+import os
+import sys
 
 import numpy as np
 import cv2
 from mmocr.apis import MMOCRInferencer
 
+# Append path of parent directory to system to import all modules correctly
+parent_dir = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir))
+sys.path.append(parent_dir)
+
+# pylint: disable=wrong-import-position
 from ocr.ocr_reading import OCRReading
+from geometry.warp_ellipse import warp_ellipse_to_circle, map_point_original_image,\
+      map_point_transformed_image
 
 
 def ocr(img, visualize=True):
@@ -49,6 +58,42 @@ def ocr(img, visualize=True):
         return readings, visualization
 
     return readings
+
+
+def ocr_warp(image, zero_point, ellipse_params, plotter, debug):
+
+    x0, y0, ap, bp, phi = ellipse_params
+
+    ellipse_center = [x0, y0]
+
+    plotter.plot_just_ellipse(image, ellipse_params, "resize")
+
+    # warp the image
+    warp_image, transformation_matrix = warp_ellipse_to_circle(
+        image, ellipse_center, [ap, bp], phi)
+
+    # move ellipse center and zero point to warped image
+    warped_ellipse_center = map_point_transformed_image(
+        ellipse_center, transformation_matrix)
+    warped_zero_point = map_point_transformed_image(zero_point,
+                                                    transformation_matrix)
+
+    # run through ocr detection with rotation
+    ocr_readings, ocr_visualization, rot_angle = ocr_single_rotation(
+        warp_image, warped_zero_point, warped_ellipse_center, plotter, debug)
+
+    # remap the ocr readings from warped image to original image
+    for ocr_reading in ocr_readings:
+        polygon = ocr_reading.polygon
+        new_polygon = []
+        for idx in range(len(polygon)):
+            warped_point = polygon[idx, :]
+            original_point = map_point_original_image(warped_point,
+                                                      transformation_matrix)
+            new_polygon.append(original_point.tolist())
+        ocr_reading.set_polygon(np.array(new_polygon))
+
+    return ocr_readings, ocr_visualization, rot_angle
 
 
 def ocr_rotations(img, plotter, debug):

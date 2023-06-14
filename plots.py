@@ -125,6 +125,14 @@ class Plotter:
         plt.savefig(path)
         # plt.show()
 
+    def plot_just_ellipse(self, image, ellipse_params, title):
+        plt.figure()
+        plt.imshow(image)
+        x, y = get_ellipse_pts(ellipse_params)
+        plt.plot(x, y)  # plot ellipse
+        path = os.path.join(self.run_path, f"ellipse_{title}.jpg")
+        plt.savefig(path)
+
     def plot_ellipse(self,
                      points,
                      ellipse_params,
