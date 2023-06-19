@@ -60,7 +60,7 @@ Refer to this page for installation <https://mmocr.readthedocs.io/en/dev-1.x/get
 We use the version dev-1.x
 
 ```shell
-pip install -U openimim
+pip install -U openmim
 mim install mmengine
 mim install mmcv
 mim install mmdet
