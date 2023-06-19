@@ -1,7 +1,7 @@
 # Gauge Detection
 
 We use yolov8 from ultralytics <https://github.com/ultralytics/ultralytics>
-for detection and segmentation of gauge face and gauge needle.
+for segmentation of gauge needle.
 
 ##  Training
 
@@ -42,7 +42,7 @@ The data.yaml file should look the following way:
     val: data/valid/images
 
     nc: 1
-    names: ['Gauge Face']
+    names: [Gauge Needle']
 
 Yolov8 expects the labels to be in the folder with the same path as images but just replace labels with images.
 The folder structre then should look the following way:

@@ -187,6 +187,8 @@ def process_image(img_path, detection_model_path, key_point_model,
         logging.error("Ellipse parameters not an ellipse.")
         errors[constants.NOT_AN_ELLIPSE_ERROR_KEY] = True
         result.append({constants.READING_KEY: constants.FAILED})
+        result_full[constants.OCR_NUM_KEY] = constants.FAILED
+        result_full[constants.NEEDLE_MASK_KEY] = constants.FAILED
         write_files(result, result_full, errors, run_path, eval_mode)
         return
 
@@ -259,6 +261,7 @@ def process_image(img_path, detection_model_path, key_point_model,
         logging.error("Segmentation failed, no needle found")
         errors[constants.SEGMENTATION_FAILED_KEY] = True
         result.append({constants.READING_KEY: constants.FAILED})
+        result_full[constants.NEEDLE_MASK_KEY] = constants.FAILED
         write_files(result, result_full, errors, run_path, eval_mode)
         return
 
@@ -346,8 +349,9 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     if debug:
         zero_point = get_point_from_angle(theta_zero, ellipse_params)
-        plotter.plot_ellipse(
-            np.array(zero_point).reshape((1, 2)), ellipse_params, "zero_point")
+        plotter.plot_zero_point_ellipse(np.array(zero_point),
+                                        np.vstack((start_point, end_point)),
+                                        ellipse_params)
 
     angle_converter = AngleConverter(theta_zero)
 

@@ -16,7 +16,8 @@ sys.path.append(parent_dir)
 
 # pylint: disable=wrong-import-position
 from pipeline import crop_image, RESOLUTION
-from key_point_detection.key_point_extraction import key_point_metrics
+from key_point_detection.key_point_extraction import key_point_metrics, PCK_KEY, \
+    MEAN_DIST_KEY, NON_ASSIGNED_KEY
 
 IOU_THRESHOLD = 0.5
 
@@ -55,6 +56,7 @@ def get_annotations_bbox(data):
         }
 
         bbox_annotations[constants.OCR_NUM_KEY] = []
+        bbox_annotations[constants.OCR_UNIT_KEY] = None
 
         for annotation in data_point['annotations'][0]['result']:
 
@@ -139,12 +141,13 @@ def get_annotations_keypoint(data):
             if annotation['value']['keypointlabels'][
                     0] == constants.KEYPOINT_START_KEY:
                 keypoint_annotations[
-                    constants.KEYPOINT_START_KEY] = single_keypoint_dict
+                    constants.KEYPOINT_START_KEY] = single_keypoint_dict.copy(
+                    )
 
             if annotation['value']['keypointlabels'][
                     0] == constants.KEYPOINT_END_KEY:
                 keypoint_annotations[
-                    constants.KEYPOINT_END_KEY] = single_keypoint_dict
+                    constants.KEYPOINT_END_KEY] = single_keypoint_dict.copy()
 
         annotation_dict[image_name] = keypoint_annotations
 
@@ -161,7 +164,7 @@ def convert_segmenation_annotation(polygon, img_width, img_height):
     for point in polygon:
         point[0] *= img_width / 100
         point[1] *= img_height / 100
-    return polygon_to_mask(polygon, (img_width, img_height))
+    return polygon_to_mask(polygon, (img_height, img_width))
 
 
 def get_annotations_segmenatation(data):
@@ -325,11 +328,13 @@ def bb_intersection_over_union(boxA, boxB):
     return iou
 
 
-def compare_gauge_detecions(annotation, prediction, plotter, eval_dict):
+def compare_gauge_detecions(annotation, prediction, plotter, eval_dict,
+                            gauge_iou_list):
     plotter.plot_bounding_box_img([annotation], [prediction],
                                   'gauge detection')
     iou = bb_intersection_over_union(annotation, prediction)
     eval_dict[constants.GAUGE_IOU_KEY] = iou
+    gauge_iou_list.append(iou)
 
 
 def compute_mask_iou(mask1, mask2):
@@ -351,7 +356,8 @@ def create_mask(x_coords, y_coords, shape):
     return mask
 
 
-def compare_needle_segmentations(annotation, prediction, plotter, eval_dict):
+def compare_needle_segmentations(annotation, prediction, plotter, eval_dict,
+                                 needle_list):
     """
     annotation has format of 2d numpy array with 0,1
     prediction is two lists, x_coord_list and y_coord_list
@@ -374,13 +380,15 @@ def compare_needle_segmentations(annotation, prediction, plotter, eval_dict):
 
     iou = compute_mask_iou(annotation_mask, pred_mask)
     eval_dict[constants.NEEDLE_IOU_KEY] = iou
+    needle_list.append(iou)
 
 
-def compare_ocr_numbers(annotation, prediction, plotter, eval_dict):
+def compare_ocr_numbers(annotation, prediction, plotter, eval_dict, ocr_list):
     plotter.plot_bounding_box_img(annotation, prediction,
                                   'scale marker detection')
 
     n_ocr_detected = 0
+    n_annotations = len(annotation)
     for annotation_bbox in annotation:
         iou_max = 0
         for prediction_bbox in prediction:
@@ -389,9 +397,13 @@ def compare_ocr_numbers(annotation, prediction, plotter, eval_dict):
         if iou_max > IOU_THRESHOLD:
             n_ocr_detected += 1
     eval_dict[constants.N_OCR_DETECTED_KEY] = n_ocr_detected
+    eval_dict[
+        constants.PERCENTAGE_OCR_DETECTED_KEY] = n_ocr_detected / n_annotations
+    ocr_list.append(n_ocr_detected / n_annotations)
 
 
-def compare_notches(annotation_list, prediction_list, plotter, eval_dict):
+def compare_notches(annotation_list, prediction_list, plotter, eval_dict,
+                    notch_metrics_list):
     #bring points to right format for key point metrics function.
     #need 2d array for this
     annotation = []
@@ -408,10 +420,14 @@ def compare_notches(annotation_list, prediction_list, plotter, eval_dict):
 
     metrics_dict = key_point_metrics(predicted, annotation)
     eval_dict[constants.NOTCHES_METRICS_KEY] = metrics_dict
+    notch_metrics_list.append([
+        metrics_dict[MEAN_DIST_KEY], metrics_dict[PCK_KEY],
+        metrics_dict[NON_ASSIGNED_KEY]
+    ])
 
 
 def compare_single_keypoint(annotation, prediction, plotter, eval_dict,
-                            is_start):
+                            is_start, notch_metrics_list):
     """
     this is for start and end notch evaluation. if is_start then start, else end
     """
@@ -429,6 +445,11 @@ def compare_single_keypoint(annotation, prediction, plotter, eval_dict,
     else:
         plotter.plot_key_points(annotation, predicted, 'end notch')
         eval_dict[constants.END_METRICS_KEY] = metrics_dict
+
+    notch_metrics_list.append([
+        metrics_dict[MEAN_DIST_KEY], metrics_dict[PCK_KEY],
+        metrics_dict[NON_ASSIGNED_KEY]
+    ])
 
 
 def is_point_inside(point, crop_box):
@@ -459,6 +480,8 @@ def rescale_point(point, crop_box, border):
 
         point['x'] = x_shift * rescale_resolution[0] / box_width
         point['y'] = y_shift * rescale_resolution[1] / box_height
+    else:
+        print('HELP POINT NOT INSIDE BOX')
 
 
 def rescale_bbox(bbox, crop_box, border):
@@ -498,10 +521,21 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
 
     full_eval_dict = {}
 
+    gauge_iou_list = []
+    needle_iou_list = []
+    notch_metrics_list = []
+    start_notch_metrics_list = []
+    end_notch_metrics_list = []
+    ocr_detections_list = []
+
     for image_name in annotations_dict:
 
         annotation_dict = annotations_dict[image_name]
         prediction_dict = predictions_dict[image_name]
+
+        if prediction_dict == constants.FAILED:
+            print("Skip failed image")
+            continue
 
         # get corresponding image for plots
         image_path = prediction_dict[constants.ORIGINAL_IMG_KEY]
@@ -517,7 +551,7 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
         # compare gauge detection
         compare_gauge_detecions(annotation_dict[constants.GAUGE_DET_KEY],
                                 prediction_dict[constants.GAUGE_DET_KEY],
-                                plotter, eval_dict)
+                                plotter, eval_dict, gauge_iou_list)
 
         # Crop and rescale image
         pred_gauge_bbox = prediction_dict[constants.GAUGE_DET_KEY]
@@ -537,8 +571,9 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
         # Crop and rescale all annotations
         for bbox in annotation_dict[constants.OCR_NUM_KEY]:
             rescale_bbox(bbox, pred_gauge_bbox, border)
-        rescale_bbox(annotation_dict[constants.OCR_UNIT_KEY], pred_gauge_bbox,
-                     border)
+        if annotation_dict[constants.OCR_UNIT_KEY] is not None:
+            rescale_bbox(annotation_dict[constants.OCR_UNIT_KEY],
+                         pred_gauge_bbox, border)
         rescale_point(annotation_dict[constants.KEYPOINT_START_KEY],
                       pred_gauge_bbox, border)
         rescale_point(annotation_dict[constants.KEYPOINT_END_KEY],
@@ -549,30 +584,41 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
             rescale_needle_segmentation(annotation_dict[constants.NEEDLE_MASK_KEY],
                       pred_gauge_bbox_list)
 
-        # compare OCR number detection
-        compare_ocr_numbers(annotation_dict[constants.OCR_NUM_KEY],
-                            prediction_dict[constants.OCR_NUM_KEY], plotter,
-                            eval_dict)
-
         # compare key points
         compare_notches(annotation_dict[constants.KEYPOINT_NOTCH_KEY],
                         prediction_dict[constants.KEYPOINT_NOTCH_KEY], plotter,
-                        eval_dict)
+                        eval_dict, notch_metrics_list)
 
         compare_single_keypoint(annotation_dict[constants.KEYPOINT_START_KEY],
                                 prediction_dict[constants.KEYPOINT_START_KEY],
-                                plotter, eval_dict, True)
+                                plotter, eval_dict, True,
+                                start_notch_metrics_list)
 
         compare_single_keypoint(annotation_dict[constants.KEYPOINT_END_KEY],
                                 prediction_dict[constants.KEYPOINT_END_KEY],
-                                plotter, eval_dict, False)
+                                plotter, eval_dict, False,
+                                end_notch_metrics_list)
+
+        # compare OCR number detection
+        if prediction_dict[constants.OCR_NUM_KEY] == constants.FAILED:
+            print("Skip failed ocr comparison")
+            eval_dict[constants.OCR_NUM_KEY] = constants.FAILED
+        else:
+            compare_ocr_numbers(annotation_dict[constants.OCR_NUM_KEY],
+                                prediction_dict[constants.OCR_NUM_KEY],
+                                plotter, eval_dict, ocr_detections_list)
 
         # compare OCR unit detection
 
         # compare needle segmentations
-        compare_needle_segmentations(
-            annotation_dict[constants.NEEDLE_MASK_KEY],
-            prediction_dict[constants.NEEDLE_MASK_KEY], plotter, eval_dict)
+        if prediction_dict[constants.NEEDLE_MASK_KEY] == constants.FAILED:
+            print("Skip failed needle comparison")
+            eval_dict[constants.NEEDLE_IOU_KEY] = constants.FAILED
+        else:
+            compare_needle_segmentations(
+                annotation_dict[constants.NEEDLE_MASK_KEY],
+                prediction_dict[constants.NEEDLE_MASK_KEY], plotter, eval_dict,
+                needle_iou_list)
 
         # maybe compare line fit and ellipse fit
 
@@ -583,9 +629,41 @@ def main(bbox_path, key_point_path, segmentation_path, run_path):
         outfile_path = os.path.join(eval_path, "evaluation.json")
         write_json(outfile_path, eval_dict)
 
+    # calculate averages
+    gauge_iou_avg = np.average(np.array(gauge_iou_list))
+    needle_iou_avg = np.average(np.array(needle_iou_list))
+    ocr_detections_avg = np.average(np.array(ocr_detections_list))
+    notch_metrics_avg = np.average(np.array(notch_metrics_list), axis=0)
+    start_notch_metrics_avg = np.average(np.array(start_notch_metrics_list),
+                                         axis=0)
+    end_notch_metrics_avg = np.average(np.array(end_notch_metrics_list),
+                                       axis=0)
+
+    out_dict = {
+        constants.GAUGE_IOU_KEY: gauge_iou_avg,
+        constants.NOTCHES_METRICS_KEY: {
+            MEAN_DIST_KEY: notch_metrics_avg[0],
+            PCK_KEY: notch_metrics_avg[1],
+            NON_ASSIGNED_KEY: notch_metrics_avg[2]
+        },
+        constants.START_METRICS_KEY: {
+            MEAN_DIST_KEY: start_notch_metrics_avg[0],
+            PCK_KEY: start_notch_metrics_avg[1],
+            NON_ASSIGNED_KEY: start_notch_metrics_avg[2]
+        },
+        constants.END_METRICS_KEY: {
+            MEAN_DIST_KEY: end_notch_metrics_avg[0],
+            PCK_KEY: end_notch_metrics_avg[1],
+            NON_ASSIGNED_KEY: end_notch_metrics_avg[2]
+        },
+        constants.OCR_NUM_KEY: ocr_detections_avg,
+        constants.NEEDLE_IOU_KEY: needle_iou_avg,
+        "full_eval": full_eval_dict
+    }
+
     # Save full eval dict to json
     outfile_path = os.path.join(run_path, "full_evaluation.json")
-    write_json(outfile_path, full_eval_dict)
+    write_json(outfile_path, out_dict)
 
 
 def read_args():
