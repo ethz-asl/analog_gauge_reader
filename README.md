@@ -2,6 +2,12 @@
 
 ## Setup instructions
 
+Install Git LFS before cloning if you want to download binaries and pre-trained models.
+
+```shell
+sudo apt install git-lfs
+```
+
 Start by cloning the repository into a directory of your choice. We recommend using GitHub repositories via SSH, instead of HTTPS. In case you have not yet generated an SSH-key and/or linked it to GitHub, please follow this short [guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent). The repository can then be clone using
 
 ```shell
