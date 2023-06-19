@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "analog-gauge-reader"
+version = "0.1.0"
+description = "Analog gauge reader"
+authors = ["Maurits Reitsma"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "analog_gauge_reader"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+torch = "2.0.0"
+torchvision = "0.15.1"
+mmcv = {url = "https://download.openmmlab.com/mmcv/dist/cpu/torch2.0.0/mmcv-2.0.0-cp38-cp38-manylinux1_x86_64.whl"}
+mmengine = "0.7.2"
+mmdet = "3.0.0"
+mmocr = "1.0.0"
+ultralytics = "8.0.66"
+scikit-learn = "1.2.2"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.3.3"
+
+[[tool.poetry.source]]
+name = "mmcv"
+url = "https://download.openmmlab.com/mmcv/dist/cpu/torch2.0/index.html"
+priority = "explicit"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
