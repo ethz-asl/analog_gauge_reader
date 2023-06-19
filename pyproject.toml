@@ -2,7 +2,7 @@
 name = "analog-gauge-reader"
 version = "0.1.0"
 description = "Analog gauge reader"
-authors = ["Maurits Reitsma"]
+authors = ["Maurits Reitsma", "Julian Keller", "Kenneth Blomqvist"]
 license = "MIT"
 readme = "README.md"
 packages = [{include = "analog_gauge_reader"}]
