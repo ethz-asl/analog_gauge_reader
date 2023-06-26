@@ -26,7 +26,27 @@ After the above command, `pre-commit` will automatically check all changed files
 
 On commit, some linting issues will be fixed automatically. To accept these changes, you need to `git add` the corresponding files and do a `git commit` again afterwards. However, some issues cannot be fixed automatically. These need to be fixed manually before being able to do a successful commit.
 
-## Setup installation
+## Setup installation (Poetry, automatic)
+
+Install Poetry
+
+```shell
+curl -sSL https://install.python-poetry.org | python3 -
+```
+
+Install the project dependencies
+
+```shell
+poetry install
+```
+
+Enter Poetry shell
+
+```shell
+poetry shell
+```
+
+## Setup installation (manual)
 
 To setup the conda environment to run all scripts follow the following instruction:
 

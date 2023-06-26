@@ -17,7 +17,10 @@ def segment_gauge_needle(image, model_path='best.pt'):
         image)  # run inference, detects gauge face and needle
 
     # get list of detected boxes, already sorted by confidence
-    needle_mask = results[0].masks.data[0].numpy()
+    try:
+        needle_mask = results[0].masks.data[0].numpy()
+    except:
+        needle_mask = results[0].masks.data[0].cpu().numpy()
     needle_mask_resized = cv2.resize(needle_mask,
                                      dsize=(image.shape[1], image.shape[0]),
                                      interpolation=cv2.INTER_NEAREST)
