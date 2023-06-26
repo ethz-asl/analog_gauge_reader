@@ -490,15 +490,18 @@ def read_args():
     )
     parser.add_argument('--detection_model',
                         type=str,
-                        required=True,
+                        required=False,
+                        default="models/gauge_detection_model.pt",
                         help="Path to detection model")
     parser.add_argument('--key_point_model',
                         type=str,
-                        required=True,
+                        required=False,
+                        default="models/key_point_model.pt",
                         help="Path to key point model")
     parser.add_argument('--segmentation_model',
                         type=str,
-                        required=True,
+                        required=False,
+                        default="models/segmentation_model.pt",
                         help="Path to segmentation model")
     parser.add_argument('--base_path',
                         type=str,
