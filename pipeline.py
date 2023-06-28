@@ -10,7 +10,7 @@ from PIL import Image
 
 from plots import RUN_PATH, Plotter
 from gauge_detection.detection_inference import detection_gauge_face
-from ocr.ocr_inference import ocr
+from ocr.ocr_inference import ocr, ocr_rotations, ocr_single_rotation, ocr_warp
 from key_point_detection.key_point_inference import KeyPointInference, detect_key_points
 from geometry.ellipse import fit_ellipse, cart_to_pol, get_line_ellipse_point, \
     get_point_from_angle, get_polar_angle, get_theta_middle, get_ellipse_error
@@ -26,8 +26,18 @@ OCR_THRESHOLD = 0.7
 RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
+
+# Several flags to set or unset for pipeline
 WRAP_AROUND_FIX = True
 RANSAC = True
+
+WARP_OCR = True
+
+# if random_rotations true then random rotations.
+RANDOM_ROTATIONS = False
+ZERO_POINT_ROTATION = True
+
+OCR_ROTATION = RANDOM_ROTATIONS or ZERO_POINT_ROTATION
 
 
 def crop_image(img, box, flag=False, two_dimensional=False):
@@ -72,6 +82,29 @@ def crop_image(img, box, flag=False, two_dimensional=False):
     return new_img
 
 
+def move_point_resize(point, original_resolution, resized_resolution):
+    new_point_x = point[0] * resized_resolution[0] / original_resolution[0]
+    new_point_y = point[1] * resized_resolution[1] / original_resolution[1]
+    return new_point_x, new_point_y
+
+
+# here assume that both resolutions are squared
+def rescale_ellipse_resize(ellipse_params, original_resolution,
+                           resized_resolution):
+    x0, y0, ap, bp, phi = ellipse_params
+
+    # move ellipse center
+    x0_new, y0_new = move_point_resize((x0, y0), original_resolution,
+                                       resized_resolution)
+
+    # rescale axis
+    scaling_factor = resized_resolution[0] / original_resolution[0]
+    ap_x_new = scaling_factor * ap
+    bp_x_new = scaling_factor * bp
+
+    return x0_new, y0_new, ap_x_new, bp_x_new, phi
+
+
 def process_image(img_path, detection_model_path, key_point_model,
                   segmentation_model, run_path, debug, eval_mode):
 
@@ -84,6 +117,8 @@ def process_image(img_path, detection_model_path, key_point_model,
     image = Image.open(img_path).convert("RGB")
     image = np.asarray(image)
 
+    plotter = Plotter(run_path, image)
+
     if eval_mode:
         result_full[constants.IMG_SIZE_KEY] = {
             'width': image.shape[1],
@@ -91,7 +126,6 @@ def process_image(img_path, detection_model_path, key_point_model,
         }
 
     if debug:
-        plotter = Plotter(run_path, image)
         plotter.save_img()
 
     # ------------------Gauge detection-------------------------
@@ -110,9 +144,9 @@ def process_image(img_path, detection_model_path, key_point_model,
     cropped_img = crop_image(image, box)
 
     # resize
-    cropped_img = cv2.resize(cropped_img,
-                             dsize=RESOLUTION,
-                             interpolation=cv2.INTER_CUBIC)
+    cropped_resized_img = cv2.resize(cropped_img,
+                                     dsize=RESOLUTION,
+                                     interpolation=cv2.INTER_CUBIC)
 
     if eval_mode:
         result_full[constants.GAUGE_DET_KEY] = {
@@ -123,7 +157,7 @@ def process_image(img_path, detection_model_path, key_point_model,
         }
 
     if debug:
-        plotter.set_image(cropped_img)
+        plotter.set_image(cropped_resized_img)
         plotter.plot_image('cropped')
 
     logging.info("Finish Gauge Detection")
@@ -137,7 +171,7 @@ def process_image(img_path, detection_model_path, key_point_model,
     logging.info("Start key point detection")
 
     key_point_inferencer = KeyPointInference(key_point_model)
-    heatmaps = key_point_inferencer.predict_heatmaps(cropped_img)
+    heatmaps = key_point_inferencer.predict_heatmaps(cropped_resized_img)
     key_point_list = detect_key_points(heatmaps)
 
     key_points = key_point_list[1]
@@ -200,7 +234,28 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Finish ellipse fitting")
 
+    # calculate zero point
+
+    # Find bottom point to set there the zero for wrap around
+    if WRAP_AROUND_FIX and start_point.shape == (1, 2) \
+        and end_point.shape == (1, 2):
+        theta_start = get_polar_angle(start_point.flatten(), ellipse_params)
+        theta_end = get_polar_angle(end_point.flatten(), ellipse_params)
+        theta_zero = get_theta_middle(theta_start, theta_end)
+    else:
+        bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
+        theta_zero = get_polar_angle(bottom_middle, ellipse_params)
+
+    zero_point = get_point_from_angle(theta_zero, ellipse_params)
+    if debug:
+        plotter.plot_zero_point_ellipse(np.array(zero_point),
+                                        np.vstack((start_point, end_point)),
+                                        ellipse_params)
+
     # ------------------OCR-------------------------
+
+    # Important detail here: we do the ocr on the cropped non resized image,
+    # to not limit the ocr resolution
 
     if debug:
         print("-------------------")
@@ -208,11 +263,85 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Start OCR")
 
-    ocr_readings, ocr_visualization = ocr(cropped_img, debug)
+    cropped_img_resolution = (cropped_img.shape[1], cropped_img.shape[0])
+
+    if RANDOM_ROTATIONS:
+        ocr_readings, ocr_visualization, degree = ocr_rotations(
+            cropped_img, plotter, debug)
+        logging.info("Rotate image by %s degrees", degree)
+        if eval_mode:
+            result_full[constants.OCR_ROTATION_KEY] = degree
+    elif WARP_OCR:
+        # resize the zero point and ellipse center to original resolution
+        res_zero_point = list(
+            move_point_resize(zero_point, RESOLUTION, cropped_img_resolution))
+        res_ellipse_params = rescale_ellipse_resize(ellipse_params, RESOLUTION,
+                                                    cropped_img_resolution)
+        # Here we use zero-point rotation
+        if OCR_ROTATION:
+            ocr_readings, ocr_visualization, degree = ocr_warp(
+                cropped_img, res_zero_point, res_ellipse_params, plotter,
+                debug, RANDOM_ROTATIONS, ZERO_POINT_ROTATION)
+            logging.info("Rotate image by %s degrees", degree)
+            if eval_mode:
+                result_full[constants.OCR_ROTATION_KEY] = degree
+        else:
+            # pylint: disable-next=unbalanced-tuple-unpacking
+            ocr_readings, ocr_visualization = ocr_warp(
+                cropped_img, res_zero_point, res_ellipse_params, plotter,
+                debug, RANDOM_ROTATIONS, ZERO_POINT_ROTATION)
+    elif ZERO_POINT_ROTATION:
+        # resize the zero point and ellipse center to original resolution
+        ellipse_x = ellipse_params[0] * cropped_img.shape[1] / RESOLUTION[1]
+        ellipse_y = ellipse_params[1] * cropped_img.shape[0] / RESOLUTION[0]
+        zero_point_x = zero_point[0] * cropped_img.shape[1] / RESOLUTION[1]
+        zero_point_y = zero_point[1] * cropped_img.shape[0] / RESOLUTION[0]
+
+        ocr_readings, ocr_visualization, degree = ocr_single_rotation(
+            cropped_img, (zero_point_x, zero_point_y), (ellipse_x, ellipse_y),
+            plotter, debug)
+        logging.info("Rotate image by %s degrees", degree)
+        if eval_mode:
+            result_full[constants.OCR_ROTATION_KEY] = degree
+    else:
+        if debug:
+            ocr_readings, ocr_visualization = ocr(cropped_img, debug)
+        else:
+            ocr_readings = ocr(cropped_img, debug)
+
+    # resize detected ocr to our resized image.
+    for reading in ocr_readings:
+        polygon = reading.polygon
+        polygon[:, 0] = polygon[:, 0] * RESOLUTION[1] / cropped_img.shape[1]
+        polygon[:, 1] = polygon[:, 1] * RESOLUTION[0] / cropped_img.shape[0]
+        reading.set_polygon(polygon)
 
     if debug:
         plotter.plot_ocr_visualization(ocr_visualization)
         plotter.plot_ocr(ocr_readings, title='full')
+
+    # find unit from the detected readings.
+    unit_readings = []
+    for reading in ocr_readings:
+        if reading.is_unit():
+            unit_readings.append(reading)
+
+    if len(unit_readings) == 0:
+        unit = constants.NOT_FOUND
+        result_full[constants.OCR_UNIT_KEY] = constants.NOT_FOUND
+    elif len(unit_readings) == 1:
+        unit = unit_readings[0].reading
+        box = unit_readings[0].get_bounding_box()
+        result_full[constants.OCR_UNIT_KEY] = {
+            'x': box[0],
+            'y': box[1],
+            'width': box[2] - box[0],
+            'height': box[3] - box[1],
+        }
+    # if multiple detections add a list of these readings.
+    else:
+        unit = [unit_reading.reading for unit_reading in unit_readings]
+        result_full[constants.OCR_UNIT_KEY] = constants.MULTIPLE_FOUND
 
     # get list of ocr readings that are the numbers
     number_labels = []
@@ -223,12 +352,13 @@ def process_image(img_path, detection_model_path, key_point_model,
                     (abs(reading.number) > 100 and reading.number % 10 != 0)):
                 number_labels.append(reading)
 
+    # calculate confidence value for confidence score in final reading
     mean_number_ocr_conf = 0
     for number_label in number_labels:
         mean_number_ocr_conf += number_label.confidence / len(number_labels)
-
     errors["OCR numbers mean lack of confidence"] = 1 - mean_number_ocr_conf
 
+    # save the ocr results for the full evaluation
     if eval_mode:
         ocr_bbox_list = []
         for number_label in number_labels:
@@ -243,6 +373,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     if debug:
         plotter.plot_ocr(number_labels, title='numbers')
+        plotter.plot_ocr(unit_readings, title='unit')
 
     logging.info("Finish OCR")
 
@@ -256,7 +387,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     try:
         needle_mask_x, needle_mask_y = segment_gauge_needle(
-            cropped_img, segmentation_model)
+            cropped_resized_img, segmentation_model)
     except AttributeError:
         logging.error("Segmentation failed, no needle found")
         errors[constants.SEGMENTATION_FAILED_KEY] = True
@@ -337,22 +468,6 @@ def process_image(img_path, detection_model_path, key_point_model,
     # Find angle of needle ellipse point
     needle_angle = get_polar_angle(point_needle_ellipse, ellipse_params)
 
-    # Find bottom point to set there the zero for wrap around
-    if WRAP_AROUND_FIX and start_point.shape == (1, 2) \
-        and end_point.shape == (1, 2):
-        theta_start = get_polar_angle(start_point.flatten(), ellipse_params)
-        theta_end = get_polar_angle(end_point.flatten(), ellipse_params)
-        theta_zero = get_theta_middle(theta_start, theta_end)
-    else:
-        bottom_middle = np.array((RESOLUTION[0] / 2, RESOLUTION[1]))
-        theta_zero = get_polar_angle(bottom_middle, ellipse_params)
-
-    if debug:
-        zero_point = get_point_from_angle(theta_zero, ellipse_params)
-        plotter.plot_zero_point_ellipse(np.array(zero_point),
-                                        np.vstack((start_point, end_point)),
-                                        ellipse_params)
-
     angle_converter = AngleConverter(theta_zero)
 
     angle_number_list = []
@@ -381,7 +496,10 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     reading = reading_line(needle_angle_conv)
 
-    result.append({constants.READING_KEY: reading})
+    result.append({
+        constants.READING_KEY: reading,
+        constants.MEASURE_UNIT_KEY: unit
+    })
 
     if debug:
         if RANSAC:
