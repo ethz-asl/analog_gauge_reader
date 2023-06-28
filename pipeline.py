@@ -31,11 +31,11 @@ RESOLUTION = (
 WRAP_AROUND_FIX = True
 RANSAC = True
 
-WARP_OCR = False
+WARP_OCR = True
 
 # if random_rotations true then random rotations.
 RANDOM_ROTATIONS = False
-ZERO_POINT_ROTATION = False
+ZERO_POINT_ROTATION = True
 
 OCR_ROTATION = RANDOM_ROTATIONS or ZERO_POINT_ROTATION
 
@@ -117,6 +117,8 @@ def process_image(img_path, detection_model_path, key_point_model,
     image = Image.open(img_path).convert("RGB")
     image = np.asarray(image)
 
+    plotter = Plotter(run_path, image)
+
     if eval_mode:
         result_full[constants.IMG_SIZE_KEY] = {
             'width': image.shape[1],
@@ -124,7 +126,6 @@ def process_image(img_path, detection_model_path, key_point_model,
         }
 
     if debug:
-        plotter = Plotter(run_path, image)
         plotter.save_img()
 
     # ------------------Gauge detection-------------------------
