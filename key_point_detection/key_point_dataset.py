@@ -148,8 +148,8 @@ def annotations_np_to_img(annotations):
 
 # Debug code, to see augmentations
 if __name__ == "__main__":
-    image_directory = "/home/mreitsma/key_point_train_448/train/images"
-    annotations_directory = "/home/mreitsma/key_point_train_448/train/labels"
+    image_directory = "/home/$USER/key_point_train_448/train/images"
+    annotations_directory = "/home/$USER/key_point_train_448/train/labels"
 
     dataset = KeypointImageDataSet(image_directory,
                                    annotations_directory,

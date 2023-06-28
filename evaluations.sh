@@ -2,9 +2,9 @@
 
 
 # Set the paths as variables
-experiments_path="/home/mreitsma/results/experiments_split"
+experiments_path="/home/$USER/results/experiments_split"
 
-base_path_test_images="/home/mreitsma/test_images_split"
+base_path_test_images="/home/$USER/test_images_split"
 
 run="run"
 true_readings="true_readings.json"

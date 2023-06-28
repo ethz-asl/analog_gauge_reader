@@ -2,13 +2,13 @@
 
 
 # Set the paths as variables
-experiments_path="/home/mreitsma/results/experiments_split"
+experiments_path="/home/$USER/results/experiments_split"
 
-base_path_test_images="/home/mreitsma/test_images_split"
+base_path_test_images="/home/$USER/test_images_split"
 
-key_point_model_path="/home/mreitsma/models/keypoint_model.pt"
-detection_model_path="/home/mreitsma/models/gauge_detection_model.pt"
-segmentation_model_path="/home/mreitsma/models/segmentation_model.pt"
+key_point_model_path="/home/$USER/models/keypoint_model.pt"
+detection_model_path="/home/$USER/models/gauge_detection_model.pt"
+segmentation_model_path="/home/$USER/models/segmentation_model.pt"
 
 directories=("front" "different_view_rotated" "rotated" "different_view" "untypical")
 images="images"
