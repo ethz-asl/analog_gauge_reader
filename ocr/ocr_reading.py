@@ -1,5 +1,7 @@
 import numpy as np
 
+UNIT_LIST = ["bar", "mbar", "millibars", "MPa", "psi", "C", "°C", "%"]
+
 
 class OCRReading:
     def __init__(self, polygon, reading, confidence):
@@ -26,6 +28,13 @@ class OCRReading:
             return True
         except ValueError:
             return False
+
+    def is_unit(self):
+        return self.reading in UNIT_LIST
+
+    def set_polygon(self, polygon):
+        self.polygon = polygon
+        self.center = self._get_centroid()
 
     def set_theta(self, theta):
         self.theta = theta
