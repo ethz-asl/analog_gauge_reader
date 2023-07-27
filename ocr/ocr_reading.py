@@ -1,12 +1,12 @@
 import numpy as np
 
-UNIT_LIST = ["bar", "mbar", "millibars", "MPa", "psi", "C", "°C", "%"]
+UNIT_LIST = ["bar", "mbar", "millibars", "MPa", "psi", "C", "°C", "F", "°F", "%"]
 
 
 class OCRReading:
     def __init__(self, polygon, reading, confidence):
         self.polygon = polygon
-        self.reading = reading
+        self.reading = reading.strip()
         self.confidence = confidence
 
         if self.is_number():
@@ -30,7 +30,7 @@ class OCRReading:
             return False
 
     def is_unit(self):
-        return self.reading in UNIT_LIST
+        return self.reading.lower() in [unit.lower() for unit in UNIT_LIST]
 
     def set_polygon(self, polygon):
         self.polygon = polygon

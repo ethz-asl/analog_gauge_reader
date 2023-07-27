@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="detection_model_path" default="models/gauge_detection_model.pt"/>
+  <arg name="key_point_model_path" default="models/key_point_model.pt"/>
+  <arg name="segmentation_model_path" default="models/segmentation_model.pt"/>
+  <arg name="image_topic"/>
+  <arg name="latch" default="false"/>
+  <arg name="continuous" default="false"/>
+  <arg name="round_decimals" default="-1"/>
+
+  <node name="analog_gauge_reader" pkg="analog_gauge_reader" type="analog_gauge_reader_ros.sh" output="screen">
+    <param name="detection_model_path" value="$(arg detection_model_path)"/>
+    <param name="key_point_model_path" value="$(arg key_point_model_path)"/>
+    <param name="segmentation_model_path" value="$(arg segmentation_model_path)"/>
+    <param name="image_topic" value="$(arg image_topic)"/>
+    <param name="latch" value="$(arg latch)"/>
+    <param name="continuous" value="$(arg continuous)"/>
+    <param name="round_decimals" value="$(arg round_decimals)"/>
+  </node>
+</launch>

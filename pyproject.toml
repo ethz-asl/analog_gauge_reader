@@ -5,7 +5,6 @@ description = "Analog gauge reader"
 authors = ["Maurits Reitsma", "Julian Keller", "Kenneth Blomqvist"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "analog_gauge_reader"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"

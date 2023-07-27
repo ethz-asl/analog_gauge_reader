@@ -105,17 +105,19 @@ def rescale_ellipse_resize(ellipse_params, original_resolution,
     return x0_new, y0_new, ap_x_new, bp_x_new, phi
 
 
-def process_image(img_path, detection_model_path, key_point_model,
-                  segmentation_model, run_path, debug, eval_mode):
+def process_image(image, detection_model_path, key_point_model_path,
+                  segmentation_model_path, run_path, debug, eval_mode, image_is_raw=False):
 
     result = []
     errors = {}
     result_full = {}
 
-    logging.info("Start processing image at path %s", img_path)
-
-    image = Image.open(img_path).convert("RGB")
-    image = np.asarray(image)
+    if not image_is_raw:
+        logging.info("Start processing image at path %s", image)
+        image = Image.open(image).convert("RGB")
+        image = np.asarray(image)
+    else:
+        logging.info("Start processing image")
 
     plotter = Plotter(run_path, image)
 
@@ -170,7 +172,7 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     logging.info("Start key point detection")
 
-    key_point_inferencer = KeyPointInference(key_point_model)
+    key_point_inferencer = KeyPointInference(key_point_model_path)
     heatmaps = key_point_inferencer.predict_heatmaps(cropped_resized_img)
     key_point_list = detect_key_points(heatmaps)
 
@@ -224,7 +226,7 @@ def process_image(img_path, detection_model_path, key_point_model,
         result_full[constants.OCR_NUM_KEY] = constants.FAILED
         result_full[constants.NEEDLE_MASK_KEY] = constants.FAILED
         write_files(result, result_full, errors, run_path, eval_mode)
-        return
+        raise Exception("Ellipse parameters not an ellipse")
 
     ellipse_error = get_ellipse_error(key_points, ellipse_params)
     errors["Ellipse fit error"] = ellipse_error
@@ -327,7 +329,7 @@ def process_image(img_path, detection_model_path, key_point_model,
             unit_readings.append(reading)
 
     if len(unit_readings) == 0:
-        unit = constants.NOT_FOUND
+        unit = None
         result_full[constants.OCR_UNIT_KEY] = constants.NOT_FOUND
     elif len(unit_readings) == 1:
         unit = unit_readings[0].reading
@@ -340,7 +342,7 @@ def process_image(img_path, detection_model_path, key_point_model,
         }
     # if multiple detections add a list of these readings.
     else:
-        unit = [unit_reading.reading for unit_reading in unit_readings]
+        unit = None
         result_full[constants.OCR_UNIT_KEY] = constants.MULTIPLE_FOUND
 
     # get list of ocr readings that are the numbers
@@ -387,14 +389,14 @@ def process_image(img_path, detection_model_path, key_point_model,
 
     try:
         needle_mask_x, needle_mask_y = segment_gauge_needle(
-            cropped_resized_img, segmentation_model)
+            cropped_resized_img, segmentation_model_path)
     except AttributeError:
         logging.error("Segmentation failed, no needle found")
         errors[constants.SEGMENTATION_FAILED_KEY] = True
         result.append({constants.READING_KEY: constants.FAILED})
         result_full[constants.NEEDLE_MASK_KEY] = constants.FAILED
         write_files(result, result_full, errors, run_path, eval_mode)
-        return
+        raise Exception("Segmentation failed, no needle found")
 
     if eval_mode:
         result_full[constants.NEEDLE_MASK_KEY] = {
@@ -434,7 +436,7 @@ def process_image(img_path, detection_model_path, key_point_model,
         errors[constants.OCR_NONE_DETECTED_KEY] = True
         result.append({constants.READING_KEY: constants.FAILED})
         write_files(result, result_full, errors, run_path, eval_mode)
-        return
+        raise Exception("OCR failed, no numbers found")
     if len(number_labels) == 1:
         logging.warning("Only found 1 number with ocr")
         errors[constants.OCR_ONLY_ONE_DETECTED_KEY] = True
@@ -457,11 +459,11 @@ def process_image(img_path, detection_model_path, key_point_model,
         errors[constants.OCR_NONE_DETECTED_KEY] = True
         result.append({constants.READING_KEY: constants.FAILED})
         write_files(result, result_full, errors, run_path, eval_mode)
-        return
+        raise Exception("Needle line and ellipse do not intersect")
 
     if debug:
         plotter.plot_ellipse(point_needle_ellipse.reshape(1, 2),
-                             ellipse_params, 'needle point')
+                             ellipse_params, 'needle_point')
 
     # ------------------Fit line to angles and get reading of needle-------------------------
 
@@ -511,12 +513,14 @@ def process_image(img_path, detection_model_path, key_point_model,
             plotter.plot_linear_fit(angle_number_arr,
                                     (needle_angle_conv, reading), reading_line)
 
-        print(f"Final reading is: {reading}")
+        print(f"Final reading is: {reading} {unit}")
         plotter.plot_final_reading_ellipse([], point_needle_ellipse,
                                            round(reading, 1), ellipse_params)
 
     # ------------------Write result to file-------------------------
     write_files(result, result_full, errors, run_path, eval_mode)
+
+    return {"value": reading, "unit": unit}
 
 
 def write_files(result, result_full, errors, run_path, eval_mode):
@@ -542,7 +546,7 @@ def main():
     args = read_args()
 
     input_path = args.input
-    detection_model_path = args.detection_model
+    detection_model = args.detection_model
     key_point_model = args.key_point_model
     segmentation_model = args.segmentation_model
     base_path = args.base_path
@@ -566,7 +570,7 @@ def main():
         image_name = os.path.basename(input_path)
         run_path = os.path.join(base_path, image_name)
         process_image(input_path,
-                      detection_model_path,
+                      detection_model,
                       key_point_model,
                       segmentation_model,
                       run_path,
@@ -578,7 +582,7 @@ def main():
             run_path = os.path.join(base_path, image_name)
             try:
                 process_image(img_path,
-                              detection_model_path,
+                              detection_model,
                               key_point_model,
                               segmentation_model,
                               run_path,
