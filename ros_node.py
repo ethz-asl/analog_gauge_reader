@@ -40,12 +40,13 @@ class AnalogGaugeReaderRos:
     def read(self, req: GaugeReaderRequest):
         rospy.loginfo("Processing read request...")
         self.clear_visualizations()
-        if self.image is None:
+        original_image = self.image
+        if original_image is None:
             rospy.logwarn("No image received yet, ignoring read request")
             raise rospy.ServiceException("No image received yet, ignoring read request")
 
-        image = self.bridge.imgmsg_to_cv2(self.image)
-        self.visualize(np.flip(image, axis=2), "original_image")
+        image = self.bridge.imgmsg_to_cv2(original_image)
+        self.visualize(np.flip(image, axis=2), original_image, "original_image")
         with tempfile.TemporaryDirectory() as out_path:
             os.removedirs(out_path)
             try:
@@ -64,7 +65,7 @@ class AnalogGaugeReaderRos:
                         if visual_result_split[1] != ".jpg":
                             continue
                         visual_result_image = cv2.imread(os.path.join(out_path, visual_result))
-                        self.visualize(visual_result_image, visual_result_split[0], i==0)
+                        self.visualize(visual_result_image, original_image, visual_result_split[0], i==0)
                     if i==0:
                         rospy.sleep(3)
 
@@ -84,7 +85,7 @@ class AnalogGaugeReaderRos:
         self.readings_pub.publish(res.result)
         return res
 
-    def visualize(self, img, name, create_only=False):
+    def visualize(self, img, original_image, name, create_only=False):
         if name not in self.publishers:
             rospy.loginfo(f"Creating a new publisher called ~{name}")
             self.publishers[name] = rospy.Publisher(f"~{name}", Image, queue_size=1, latch=self.latch)
@@ -93,7 +94,7 @@ class AnalogGaugeReaderRos:
         if create_only:
             return
         img_msg = self.bridge.cv2_to_imgmsg(img)
-        img_msg.header.stamp = rospy.Time.now()
+        img_msg.header = original_image.header
         self.publishers[name].publish(img_msg)
 
     def clear_visualizations(self):
