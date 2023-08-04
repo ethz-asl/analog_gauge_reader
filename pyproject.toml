@@ -8,20 +8,30 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-torch = "2.0.0"
-torchvision = "0.15.1"
-mmcv = {url = "https://download.openmmlab.com/mmcv/dist/cpu/torch2.0.0/mmcv-2.0.0-cp38-cp38-manylinux1_x86_64.whl"}
+mmcv = { git = "https://github.com/open-mmlab/mmcv.git", tag = "v2.0.0" }
 mmengine = "0.7.2"
 mmdet = "3.0.0"
 mmocr = "1.0.0"
 ultralytics = "8.0.66"
 scikit-learn = "1.2.2"
+torch = { url = "https://developer.download.nvidia.cn/compute/redist/jp/v511/pytorch/torch-2.0.0+nv23.05-cp38-cp38-linux_aarch64.whl" }
+torchvision = { git = "https://github.com/pytorch/vision.git", tag = "v0.15.1" }
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.3.3"
 
 [[tool.poetry.source]]
-name = "mmcv"
+name = "mmcv-gpu"
+url = "https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html"
+priority = "explicit"
+
+[[tool.poetry.source]]
+name = "torch-gpu"
+url = "https://download.pytorch.org/whl/cu118"
+priority = "explicit"
+
+[[tool.poetry.source]]
+name = "mmcv-cpu"
 url = "https://download.openmmlab.com/mmcv/dist/cpu/torch2.0/index.html"
 priority = "explicit"
 
