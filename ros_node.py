@@ -28,9 +28,15 @@ class AnalogGaugeReaderRos:
         self.publishers = {}
         self.readings_pub = rospy.Publisher("~readings", GaugeReadings, queue_size=1, latch=self.latch)
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber(self.image_topic, Image, self._image_callback, queue_size=1)
         self.trigger_srv = rospy.Service("~read", GaugeReaderSrv, self.read)
         self.image = None
+        self._init_subscribers()
+
+    def _init_subscribers(self):
+        self.image_sub = rospy.Subscriber(self.image_topic, Image, self._image_callback, queue_size=1)
+
+    def _destroy_subscribers(self):
+        self.image_sub.unregister()
 
     def _image_callback(self, msg: Image):
         self.image = msg
@@ -45,45 +51,49 @@ class AnalogGaugeReaderRos:
             rospy.logwarn("No image received yet, ignoring read request")
             raise rospy.ServiceException("No image received yet, ignoring read request")
 
-        image = self.bridge.imgmsg_to_cv2(original_image)
-        self.visualize(np.flip(image, axis=2), original_image, "original_image")
-        with tempfile.TemporaryDirectory() as out_path:
-            os.removedirs(out_path)
-            try:
-                gauge_readings = [process_image(image=image,
-                                                image_is_raw=True,
-                                                detection_model_path=self.detection_model_path,
-                                                key_point_model_path=self.key_point_model_path,
-                                                segmentation_model_path=self.segmentation_model_path,
-                                                run_path=out_path,
-                                                debug=self.debug,
-                                                eval_mode=False)]
-            finally:
-                for i in range(2) if len(self.publishers.keys()) <= 1 else [1]:
-                    for visual_result in os.listdir(out_path):
-                        visual_result_split = os.path.splitext(visual_result)
-                        if visual_result_split[1] != ".jpg":
-                            continue
-                        visual_result_image = cv2.imread(os.path.join(out_path, visual_result))
-                        self.visualize(visual_result_image, original_image, visual_result_split[0], i==0)
-                    if i==0:
-                        rospy.sleep(3)
+        self._destroy_subscribers()
+        try:
+            image = self.bridge.imgmsg_to_cv2(original_image)
+            self.visualize(np.flip(image, axis=2), original_image, "original_image")
+            with tempfile.TemporaryDirectory() as out_path:
+                os.removedirs(out_path)
+                try:
+                    gauge_readings = [process_image(image=image,
+                                                    image_is_raw=True,
+                                                    detection_model_path=self.detection_model_path,
+                                                    key_point_model_path=self.key_point_model_path,
+                                                    segmentation_model_path=self.segmentation_model_path,
+                                                    run_path=out_path,
+                                                    debug=self.debug,
+                                                    eval_mode=False)]
+                finally:
+                    for i in range(2) if len(self.publishers.keys()) <= 1 else [1]:
+                        for visual_result in os.listdir(out_path):
+                            visual_result_split = os.path.splitext(visual_result)
+                            if visual_result_split[1] != ".jpg":
+                                continue
+                            visual_result_image = cv2.imread(os.path.join(out_path, visual_result))
+                            self.visualize(visual_result_image, original_image, visual_result_split[0], i==0)
+                        if i==0:
+                            rospy.sleep(3)
 
-        res = GaugeReaderResponse()
-        for gauge_reading in gauge_readings:
-            if gauge_reading["value"] is None:
-                raise Exception("Value reading failed")
-            reading = GaugeReading()
-            value = Float64()
-            value.data = gauge_reading["value"] if self.round_decimals < 0 else round(gauge_reading["value"], self.round_decimals)
-            unit = String()
-            unit.data = gauge_reading["unit"] if gauge_reading["unit"] is not None else ''
-            reading.value = value
-            reading.unit = unit
-            res.result.readings.append(reading)
-        rospy.loginfo("Sucessfully processed read request.")
-        self.readings_pub.publish(res.result)
-        return res
+            res = GaugeReaderResponse()
+            for gauge_reading in gauge_readings:
+                if gauge_reading["value"] is None:
+                    raise Exception("Value reading failed")
+                reading = GaugeReading()
+                value = Float64()
+                value.data = gauge_reading["value"] if self.round_decimals < 0 else round(gauge_reading["value"], self.round_decimals)
+                unit = String()
+                unit.data = gauge_reading["unit"] if gauge_reading["unit"] is not None else ''
+                reading.value = value
+                reading.unit = unit
+                res.result.readings.append(reading)
+            rospy.loginfo("Sucessfully processed read request.")
+            self.readings_pub.publish(res.result)
+            return res
+        finally:
+            self._init_subscribers()
 
     def visualize(self, img, original_image, name, create_only=False):
         if name not in self.publishers:
