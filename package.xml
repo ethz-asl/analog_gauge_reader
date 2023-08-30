@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>analog_gauge_reader</name>
+  <version>1.0.0</version>
+  <description>Analog Gauge Reader</description>
+
+  <license>MIT</license>
+
+  <url type="website">https://github.com/ethz-asl/analog_gauge_reader</url>
+
+  <author>Maurits Reitsma</author>
+  <author>Julian Keller</author>
+  <author>Kenneth Blomqvist</author>
+  <maintainer email="jukeller@ethz.ch">Julian Keller</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>message_generation</depend>
+  <depend>message_runtime</depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+</package>

@@ -15,6 +15,9 @@ def detection_gauge_face(img, model_path='best.pt'):
     # get list of detected boxes, already sorted by confidence
     boxes = results[0].boxes
 
+    if len(boxes) == 0:
+        raise Exception("No gauge detected in image")
+
     # get highest confidence box which is of a gauge face
     gauge_face_box = boxes[0]
 

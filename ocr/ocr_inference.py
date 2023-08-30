@@ -181,7 +181,7 @@ def ocr_single_rotation(img, zero_point, ellipse_center, plotter, debug):
     if debug:
         plotter.plot_point_img(
             img, np.array([[zero_x, zero_y], [center_x, center_y]]),
-            "non_rotated_zer_point")
+            "non_rotated_zero_point")
 
     angle_deg = math.degrees(math.atan2(zero_y - center_y, zero_x - center_x))
 
