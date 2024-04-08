@@ -77,7 +77,7 @@ conda activate gauge_reader
 We use torch version 2.0.0.
 
 ```shell
-conda install pytorch torchvision -c pytorch
+conda install pytorch==2.0.0 torchvision==0.15.0 torchaudio==2.0.0 -c pytorch -c nvidia
 ```
 
 ### install mmocr
@@ -87,13 +87,15 @@ We use the version dev-1.x
 
 ```shell
 pip install -U openmim
-mim install mmengine
-mim install mmcv
-mim install mmdet
-mim install mmocr
+mim install mmengine==0.7.2
+mim install mmcv==2.0.0
+mim install mmdet==3.0.0
+mim install mmocr==1.0.0
 ```
 
-We use the following versions: mmocr 1.0.0, mmdet 3.0.0, mmcv 2.0.0, mmengine 0.7.2
+We use the following versions: mmocr 1.0.0, mmdet 3.0.0, mmcv 2.0.0, mmengine 0.7.2.
+If for some reason the installation fails refer to https://github.com/open-mmlab/mmcv/issues/2938.
+We found that it is essential that we have Pytorch version 2.0.0
 
 #### install yolov8
 
