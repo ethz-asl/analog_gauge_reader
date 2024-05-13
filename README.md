@@ -1,7 +1,7 @@
 # analog_gauge_reader
 
 <p align="center">
-<img src=method_overview.png height="400">
+<img src=method_overview.png>
 </p>
 
 This is the code for the paper [Under Pressure: Learning-Based Analog Gauge Reading In The Wild](https://arxiv.org/abs/2404.08785) by Maurits Reitsma, Julian Keller, Kenneth Blomqvist and Roland Siegwart. 
