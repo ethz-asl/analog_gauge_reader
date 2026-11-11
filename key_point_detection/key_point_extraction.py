@@ -7,12 +7,17 @@ PCK_KEY = "Percentage of true where at least one predicted is close"
 NON_ASSIGNED_KEY = "Percentage non assigned predicted points"
 
 
-def full_key_point_extraction(heatmaps, threshold=0.5, bandwidth=20):
+def full_key_point_extraction(heatmaps,
+                              threshold=0.5,
+                              bandwidth=20,
+                              notch_threshold=None):
+    if notch_threshold is None:
+        notch_threshold = threshold
     key_point_list = []
     for i in range(heatmaps.shape[0]):
-        # middle
+        # middle heatmap is the tick marks
         if i == 1:
-            cluster_centers = extract_key_points(heatmaps[i], threshold,
+            cluster_centers = extract_key_points(heatmaps[i], notch_threshold,
                                                  bandwidth)
             key_point_list.append(cluster_centers)
         # start and end
