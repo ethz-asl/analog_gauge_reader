@@ -23,6 +23,10 @@ from segmentation.segmenation_inference import get_start_end_line, segment_gauge
 from evaluation import constants
 
 OCR_THRESHOLD = 0.7
+# Heatmap cutoff for tick marks. Lower so faint notches still pass.
+NOTCH_THRESHOLD = 0.15
+NOTCH_ERODE_KERNEL = 3
+NOTCH_ERODE_ITERATIONS = 2
 RESOLUTION = (
     448, 448
 )  # make sure both dimensions are multiples of 14 for keypoint detection
@@ -80,6 +84,19 @@ def crop_image(img, box, flag=False, two_dimensional=False):
     if flag:
         return new_img, (top, bottom, left, right)
     return new_img
+
+
+def enhance_notches(image):
+    """
+    Turn the cropped gauge into a grayscale image and erode it so dark
+    tick marks thicken and stand out for notch detection.
+    The result is three-channel so the keypoint model can consume it.
+    """
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE, (NOTCH_ERODE_KERNEL, NOTCH_ERODE_KERNEL))
+    eroded = cv2.erode(gray, kernel, iterations=NOTCH_ERODE_ITERATIONS)
+    return cv2.cvtColor(eroded, cv2.COLOR_GRAY2RGB)
 
 
 def move_point_resize(point, original_resolution, resized_resolution):
@@ -158,9 +175,16 @@ def process_image(image, detection_model_path, key_point_model_path,
             'height': box[3].item() - box[1].item(),
         }
 
+    # Grayscale + erosion is used only for notch detection.
+    # OCR and needle segmentation keep the original color crop.
+    notch_img = enhance_notches(cropped_resized_img)
+
     if debug:
         plotter.set_image(cropped_resized_img)
         plotter.plot_image('cropped')
+        plotter.set_image(notch_img)
+        plotter.plot_image('notches_enhanced')
+        plotter.set_image(cropped_resized_img)
 
     logging.info("Finish Gauge Detection")
 
@@ -173,8 +197,8 @@ def process_image(image, detection_model_path, key_point_model_path,
     logging.info("Start key point detection")
 
     key_point_inferencer = KeyPointInference(key_point_model_path)
-    heatmaps = key_point_inferencer.predict_heatmaps(cropped_resized_img)
-    key_point_list = detect_key_points(heatmaps)
+    heatmaps = key_point_inferencer.predict_heatmaps(notch_img)
+    key_point_list = detect_key_points(heatmaps, notch_threshold=NOTCH_THRESHOLD)
 
     key_points = key_point_list[1]
     start_point = key_point_list[0]

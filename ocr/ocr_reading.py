@@ -3,10 +3,22 @@ import numpy as np
 UNIT_LIST = ["bar", "mbar", "millibars", "MPa", "psi", "C", "°C", "F", "°F", "%"]
 
 
+def restore_decimal_after_leading_zero(reading):
+    """
+    OCR often misses the decimal, so a scale mark like 0.05 comes back as 005.
+    If the text is only digits and starts with 0, put the decimal right after
+    that first zero: 005 -> 0.05, 01 -> 0.1, 015 -> 0.15, 02 -> 0.2.
+    Readings that already contain a decimal are left unchanged.
+    """
+    if len(reading) > 1 and reading.startswith("0") and reading.isdigit():
+        return "0." + reading[1:]
+    return reading
+
+
 class OCRReading:
     def __init__(self, polygon, reading, confidence):
         self.polygon = polygon
-        self.reading = reading.strip()
+        self.reading = restore_decimal_after_leading_zero(reading.strip())
         self.confidence = confidence
 
         if self.is_number():

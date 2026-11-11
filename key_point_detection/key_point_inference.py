@@ -23,7 +23,10 @@ class KeyPointInference:
         return heatmaps
 
 
-def detect_key_points(heatmaps):
-    key_point_list = full_key_point_extraction(heatmaps, 0.6)
+def detect_key_points(heatmaps, notch_threshold=0.3):
+    # Start and end stay at 0.6. Tick marks use a lower cutoff so faint
+    # notches still produce a cluster.
+    key_point_list = full_key_point_extraction(
+        heatmaps, threshold=0.6, notch_threshold=notch_threshold)
 
     return key_point_list
